@@ -1,0 +1,44 @@
+# Gradle / Kotlin caches and build outputs
+.gradle/
+.kotlin/
+build/
+
+# Machine-specific Android SDK configuration
+local.properties
+
+# IDE-generated files and local preferences
+.idea/
+*.iml
+
+# Native build and Android Studio output
+.externalNativeBuild/
+.cxx/
+captures/
+*.apk
+*.aab
+output-metadata.json
+*.hprof
+
+# Signing keys and private signing configuration
+*.jks
+*.keystore
+*.p12
+*.pfx
+keystore.properties
+signing.properties
+
+# Local secrets (keep sanitized templates shareable)
+secrets.properties
+.env
+.env.*
+!.env.example
+!.env.template
+!.env.*.example
+
+# OS, editor temporary files and logs
+.DS_Store
+Thumbs.db
+*.log
+*.swp
+*.swo
+*~
