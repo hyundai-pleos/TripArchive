@@ -1,6 +1,14 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.ktlint)
+}
+
+ktlint {
+    version.set("1.8.0")
+    filter {
+        exclude { it.file.path.contains("/build/") || it.file.path.contains("/generated/") }
+    }
 }
 
 android {
