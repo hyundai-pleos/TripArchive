@@ -95,7 +95,7 @@ fun ProfileScreen(
                         Column(
                             Modifier
                                 .width((200 * s).dp)
-                                .height((228 * s).dp)
+                                .height((263 * s).dp)
                                 .border(
                                     (3 * s).dp,
                                     if (relationship ==
@@ -108,14 +108,22 @@ fun ProfileScreen(
                                     RoundedCornerShape((20 * s).dp),
                                 ).selectable(
                                     relationship == label,
+                                    interactionSource = null,
+                                    indication = null,
                                     role = Role.RadioButton,
                                     onClick = { onRelationshipChange(label) },
-                                ).padding(top = (10 * s).dp),
+                                ).padding(vertical = (20 * s).dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             Avatar(156 * s, 100 * s)
                             Spacer(Modifier.height((20 * s).dp))
-                            Text(label, color = Color(0xFF4E5968), fontSize = (28 * s).sp, lineHeight = (44 * s).sp)
+                            Text(
+                                label,
+                                color = Color(0xFF4E5968),
+                                fontSize = (28 * s).sp,
+                                lineHeight = (44 * s).sp,
+                                fontWeight = FontWeight.Medium,
+                            )
                         }
                     }
                 }
