@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.triparchive.core.designsystem.TripArchiveTheme
 
+@dagger.hilt.android.AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,5 +30,8 @@ fun TripArchiveApp(modifier: Modifier = Modifier) {
 @Preview(name = "Pleos", widthDp = 1280, heightDp = 720, showBackground = true)
 @Composable
 private fun TripArchivePreview() {
-    TripArchiveTheme { TripArchiveApp() }
+    TripArchiveTheme {
+        com.triparchive.presentation.onboarding
+            .OnboardingScreen({})
+    }
 }
