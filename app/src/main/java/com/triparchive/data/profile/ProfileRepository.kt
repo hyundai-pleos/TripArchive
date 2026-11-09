@@ -25,7 +25,7 @@ class RoomProfileRepository
         ): Long {
             val trimmed = nickname.trim()
             require(trimmed.isNotEmpty()) { "Nickname must not be blank" }
-            return dao.insert(Profile(nickname = trimmed, relationship = relationship))
+            return dao.insertWithinLimit(Profile(nickname = trimmed, relationship = relationship))
         }
 
         override suspend fun getById(id: Long): Profile? = dao.getById(id)

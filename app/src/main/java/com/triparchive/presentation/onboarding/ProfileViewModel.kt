@@ -3,6 +3,7 @@ package com.triparchive.presentation.onboarding
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.triparchive.data.profile.ProfileLimitException
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.data.profile.ProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -66,6 +67,8 @@ class ProfileViewModel
                 } catch (cancelled: CancellationException) {
                     mutableState.value = form
                     throw cancelled
+                } catch (_: ProfileLimitException) {
+                    mutableState.value = form.copy(error = "프로필은 최대 4개까지 만들 수 있어요.")
                 } catch (_: Exception) {
                     mutableState.value = form.copy(error = "프로필을 저장하지 못했어요. 다시 시도해 주세요.")
                 }
@@ -77,7 +80,7 @@ class ProfileViewModel
         }
 
         fun startNewProfile() {
-            if (state.value.saving || state.value.savedId == null) return
+            if (state.value.saving) return
             savedState.remove<Long>("savedId")
             savedState.remove<String>("nickname")
             savedState.remove<String>("relationship")
