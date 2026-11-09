@@ -53,6 +53,8 @@ fun ProfileScreen(
     onRelationshipChange: (String) -> Unit,
     onBack: () -> Unit,
     onNext: () -> Unit,
+    saving: Boolean = false,
+    saved: Boolean = false,
 ) {
     BoxWithConstraints(
         Modifier.fillMaxSize().background(Color.White).safeDrawingPadding(),
@@ -65,7 +67,7 @@ fun ProfileScreen(
                 .padding(horizontal = (56 * s).dp)
                 .padding(top = (40 * s).dp, bottom = (56 * s).dp),
         ) {
-            IconButton(onClick = onBack, modifier = Modifier.size((64 * s).dp)) {
+            IconButton(onClick = onBack, enabled = !saving, modifier = Modifier.size((64 * s).dp)) {
                 Image(painterResource(R.drawable.profile_back), "뒤로", Modifier.size((19 * s).dp, (35 * s).dp))
             }
             Spacer(Modifier.height((48 * s).dp))
@@ -108,6 +110,7 @@ fun ProfileScreen(
                                     RoundedCornerShape((20 * s).dp),
                                 ).selectable(
                                     relationship == label,
+                                    enabled = !saving && !saved,
                                     interactionSource = null,
                                     indication = null,
                                     role = Role.RadioButton,
@@ -150,6 +153,7 @@ fun ProfileScreen(
                 ) {
                     BasicTextField(
                         value = nickname,
+                        readOnly = saving || saved,
                         onValueChange = onNicknameChange,
                         singleLine = true,
                         modifier = Modifier.weight(1f).semantics { contentDescription = "닉네임 입력" },
@@ -165,7 +169,7 @@ fun ProfileScreen(
                                 color = Color(0xFF191F28),
                             ),
                     )
-                    IconButton(onClick = { onNicknameChange("") }) {
+                    IconButton(onClick = { onNicknameChange("") }, enabled = !saving && !saved) {
                         Box(
                             Modifier.size((28 * s).dp).background(Color(0xFFE5E8EB), CircleShape),
                             contentAlignment = Alignment.Center,
@@ -178,13 +182,25 @@ fun ProfileScreen(
             Spacer(Modifier.weight(1f))
             Button(
                 onClick = onNext,
-                enabled = nickname.isNotBlank() && (!relationshipStep || relationship.isNotBlank()),
+                enabled =
+                    !saving && !(relationshipStep && saved) && nickname.isNotBlank() &&
+                        (!relationshipStep || relationship.isNotBlank()),
                 modifier = Modifier.fillMaxWidth().height((96 * s).dp),
                 shape = RoundedCornerShape((16 * s).dp),
                 colors = ButtonDefaults.buttonColors(containerColor = ProfilePink, contentColor = Color.White),
             ) {
                 Text(
-                    if (relationshipStep) "프로필 만들기" else "다음으로",
+                    if (saving) {
+                        "저장 중…"
+                    } else if (relationshipStep &&
+                        saved
+                    ) {
+                        "저장 완료"
+                    } else if (relationshipStep) {
+                        "프로필 만들기"
+                    } else {
+                        "다음으로"
+                    },
                     fontSize = (32 * s).sp,
                     lineHeight = (44 * s).sp,
                     fontWeight = FontWeight.SemiBold,
