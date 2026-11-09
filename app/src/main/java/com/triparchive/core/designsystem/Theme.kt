@@ -16,6 +16,7 @@ fun TripArchiveTheme(
 ) {
     MaterialTheme(
         colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,
+        typography = TripArchiveTypography,
         content = content,
     )
 }
