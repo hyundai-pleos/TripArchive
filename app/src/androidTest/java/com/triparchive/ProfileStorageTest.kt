@@ -12,6 +12,7 @@ import com.triparchive.presentation.onboarding.ProfileViewModel
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -58,6 +59,16 @@ class ProfileStorageTest {
                         .size,
                 )
                 assertEquals(ProfileRelationship.CHILD, database.profileDao().getById(second)?.relationship)
+                val concurrentRepository = RoomProfileRepository(database.profileDao())
+                val results =
+                    (1..8)
+                        .map {
+                            async(Dispatchers.IO) {
+                                runCatching { concurrentRepository.create("추가", ProfileRelationship.PARTNER) }
+                            }
+                        }.awaitAll()
+                assertEquals(2, results.count { it.isSuccess })
+                assertEquals(4, concurrentRepository.observeAll().first().size)
             } finally {
                 database.close()
                 context.deleteDatabase(name)
