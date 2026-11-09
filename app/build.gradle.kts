@@ -78,5 +78,10 @@ dependencies {
 }
 
 ksp {
-    arg("room.schemaLocation", layout.projectDirectory.dir("schemas").asFile.absolutePath)
+    arg(
+        "room.schemaLocation",
+        layout.projectDirectory
+            .dir("schemas")
+            .asFile.absolutePath,
+    )
 }
