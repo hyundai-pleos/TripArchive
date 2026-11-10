@@ -22,7 +22,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.triparchive.data.profile.MAX_PROFILES
 import com.triparchive.data.profile.ProfileRelationship
-import com.triparchive.presentation.home.HomeScreen
+import com.triparchive.presentation.home.DestinationHome
 import com.triparchive.presentation.management.ManagementEvent
 import com.triparchive.presentation.management.ProfileEditScreen
 import com.triparchive.presentation.management.ProfileManagementScreen
@@ -189,7 +189,11 @@ fun OnboardingNavigation(
                     }
                     entry<Home> { home ->
                         profiles.firstOrNull { it.id == home.profileId }?.let { profile ->
-                            HomeScreen(profile = profile, onProfileClick = {
+                            DestinationHome(profile = profile, onFinish = {
+                                selectionViewModel.clearSelection()
+                                backStack.clear()
+                                backStack.add(Profiles)
+                            }, onProfileClick = {
                                 if (backStack.lastOrNull() == home) backStack.add(ManageProfile(profile.id))
                             })
                         }
