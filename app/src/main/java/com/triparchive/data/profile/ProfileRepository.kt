@@ -11,6 +11,14 @@ interface ProfileRepository {
 
     suspend fun getById(id: Long): Profile?
 
+    suspend fun update(
+        id: Long,
+        nickname: String,
+        relationship: ProfileRelationship,
+    ): Boolean
+
+    suspend fun delete(id: Long): Boolean
+
     fun observeAll(): Flow<List<Profile>>
 }
 
@@ -29,6 +37,18 @@ class RoomProfileRepository
         }
 
         override suspend fun getById(id: Long): Profile? = dao.getById(id)
+
+        override suspend fun update(
+            id: Long,
+            nickname: String,
+            relationship: ProfileRelationship,
+        ): Boolean {
+            val trimmed = nickname.trim()
+            require(trimmed.isNotEmpty()) { "Nickname must not be blank" }
+            return dao.update(id, trimmed, relationship) > 0
+        }
+
+        override suspend fun delete(id: Long): Boolean = dao.delete(id) > 0
 
         override fun observeAll(): Flow<List<Profile>> = dao.observeAll()
     }

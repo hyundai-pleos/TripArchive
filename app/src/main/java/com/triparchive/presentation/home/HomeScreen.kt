@@ -2,6 +2,7 @@ package com.triparchive.presentation.home
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -35,7 +36,10 @@ import com.triparchive.data.profile.Profile
 import com.triparchive.data.profile.ProfileRelationship
 
 @Composable
-fun HomeScreen(profile: Profile) {
+fun HomeScreen(
+    profile: Profile,
+    onProfileClick: () -> Unit = {},
+) {
     BoxWithConstraints(
         Modifier.fillMaxSize().background(Color.White).safeDrawingPadding(),
         contentAlignment = Alignment.TopCenter,
@@ -50,7 +54,18 @@ fun HomeScreen(profile: Profile) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier
+                    .weight(
+                        1f,
+                    ).clickable(
+                        interactionSource = null,
+                        indication = null,
+                        role = Role.Button,
+                        onClick = onProfileClick,
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Box(
                     Modifier.size((72 * scale).dp).background(Color(0xFFDCEBFF), CircleShape),
                     contentAlignment = Alignment.Center,

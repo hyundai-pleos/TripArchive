@@ -23,6 +23,10 @@ import androidx.navigation3.ui.NavDisplay
 import com.triparchive.data.profile.MAX_PROFILES
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.presentation.home.HomeScreen
+import com.triparchive.presentation.management.ManagementEvent
+import com.triparchive.presentation.management.ProfileEditScreen
+import com.triparchive.presentation.management.ProfileManagementScreen
+import com.triparchive.presentation.management.ProfileManagementViewModel
 import com.triparchive.presentation.onboarding.OnboardingScreen
 import com.triparchive.presentation.onboarding.ProfileScreen
 import com.triparchive.presentation.onboarding.ProfileViewModel
@@ -46,6 +50,16 @@ private data class Home(
 ) : NavKey
 
 @Serializable
+private data class ManageProfile(
+    val profileId: Long,
+) : NavKey
+
+@Serializable
+private data class EditProfile(
+    val profileId: Long,
+) : NavKey
+
+@Serializable
 private data object Nickname : NavKey
 
 @Serializable
@@ -56,12 +70,29 @@ fun OnboardingNavigation(
     modifier: Modifier = Modifier,
     viewModel: ProfileViewModel = hiltViewModel(),
     selectionViewModel: ProfileSelectionViewModel = hiltViewModel(),
+    managementViewModel: ProfileManagementViewModel = hiltViewModel(),
 ) {
     val backStack = rememberNavBackStack(Startup)
     val form by viewModel.state.collectAsState()
     val listState by selectionViewModel.state.collectAsState()
+    val management by managementViewModel.state.collectAsState()
+    LaunchedEffect(managementViewModel) {
+        managementViewModel.events.collect { event ->
+            when (event) {
+                ManagementEvent.Saved -> {
+                    if (backStack.lastOrNull() is EditProfile) backStack.removeLastOrNull()
+                }
+
+                ManagementEvent.Deleted -> {
+                    selectionViewModel.clearSelection()
+                    backStack.clear()
+                    backStack.add(Profiles)
+                }
+            }
+        }
+    }
     val profiles = (listState as? ProfileListState.Ready)?.profiles
-    LaunchedEffect(profiles, form.savedId) {
+    LaunchedEffect(profiles, form.savedId, backStack.lastOrNull()) {
         if (profiles != null) {
             if (backStack.lastOrNull() == Startup) {
                 backStack.clear()
@@ -75,8 +106,13 @@ fun OnboardingNavigation(
             } else if (backStack.lastOrNull() == Profiles && profiles.isEmpty()) {
                 backStack.clear()
                 backStack.add(Welcome)
-            } else if (backStack.lastOrNull() is Home &&
-                profiles.none { it.id == (backStack.lastOrNull() as Home).profileId }
+            } else if (
+                when (val current = backStack.lastOrNull()) {
+                    is Home -> profiles.none { it.id == current.profileId }
+                    is ManageProfile -> profiles.none { it.id == current.profileId }
+                    is EditProfile -> profiles.none { it.id == current.profileId }
+                    else -> false
+                }
             ) {
                 backStack.clear()
                 backStack.add(if (profiles.isEmpty()) Welcome else Profiles)
@@ -120,7 +156,16 @@ fun OnboardingNavigation(
     Box(modifier) {
         NavDisplay(
             backStack = backStack,
-            onBack = { if (!form.saving && backStack.size > 1) backStack.removeLastOrNull() },
+            onBack = {
+                if (!form.saving && !management.busy) {
+                    if (management.showDeleteDialog) {
+                        managementViewModel.cancelDelete()
+                    } else if (backStack.size > 1) {
+                        if (backStack.lastOrNull() is EditProfile) managementViewModel.reset()
+                        backStack.removeLastOrNull()
+                    }
+                }
+            },
             entryProvider =
                 entryProvider {
                     entry<Startup> {
@@ -144,8 +189,55 @@ fun OnboardingNavigation(
                     }
                     entry<Home> { home ->
                         profiles.firstOrNull { it.id == home.profileId }?.let { profile ->
-                            HomeScreen(profile = profile)
+                            HomeScreen(profile = profile, onProfileClick = {
+                                if (backStack.lastOrNull() == home) backStack.add(ManageProfile(profile.id))
+                            })
                         }
+                    }
+                    entry<ManageProfile> { route ->
+                        profiles.firstOrNull { it.id == route.profileId }?.let { profile ->
+                            ProfileManagementScreen(
+                                profile = profile,
+                                showDeleteDialog = management.showDeleteDialog,
+                                busy = management.busy,
+                                error = management.error,
+                                onBack = { if (!management.busy) backStack.removeLastOrNull() },
+                                onEdit = {
+                                    if (!management.busy && backStack.lastOrNull() == route) {
+                                        managementViewModel.startEdit(profile)
+                                        backStack.add(EditProfile(profile.id))
+                                    }
+                                },
+                                onDelete = managementViewModel::showDelete,
+                                onCancelDelete = managementViewModel::cancelDelete,
+                                onConfirmDelete = { managementViewModel.delete(profile.id) },
+                                onLogout = {
+                                    if (!management.busy) {
+                                        selectionViewModel.clearSelection()
+                                        managementViewModel.reset()
+                                        backStack.clear()
+                                        backStack.add(Profiles)
+                                    }
+                                },
+                            )
+                        }
+                    }
+                    entry<EditProfile> { route ->
+                        ProfileEditScreen(
+                            nickname = management.nickname,
+                            relationship = management.relationship,
+                            busy = management.busy,
+                            error = management.error,
+                            onNicknameChange = managementViewModel::updateNickname,
+                            onRelationshipChange = managementViewModel::updateRelationship,
+                            onBack = {
+                                if (!management.busy) {
+                                    managementViewModel.reset()
+                                    backStack.removeLastOrNull()
+                                }
+                            },
+                            onSave = { managementViewModel.save(route.profileId) },
+                        )
                     }
                     entry<Nickname> {
                         ProfileScreen(
