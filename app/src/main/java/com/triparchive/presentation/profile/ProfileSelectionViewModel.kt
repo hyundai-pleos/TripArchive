@@ -33,7 +33,6 @@ class ProfileSelectionViewModel
         private val mutableState = MutableStateFlow<ProfileListState>(ProfileListState.Loading)
         val state = mutableState.asStateFlow()
         val selectedId = savedState.getStateFlow<Long?>("selectedProfileId", null)
-        val showSelection = savedState.getStateFlow("showSelection", false)
         private var observation: Job? = null
 
         init {
@@ -50,7 +49,6 @@ class ProfileSelectionViewModel
                             mutableState.value = ProfileListState.Ready(profiles)
                             if (selectedId.value != null && profiles.none { it.id == selectedId.value }) {
                                 savedState["selectedProfileId"] = null
-                                savedState["showSelection"] = false
                             }
                         }
                     } catch (cancelled: CancellationException) {
@@ -65,10 +63,5 @@ class ProfileSelectionViewModel
             val profiles = (state.value as? ProfileListState.Ready)?.profiles ?: return
             if (profiles.none { it.id == id }) return
             savedState["selectedProfileId"] = id
-            savedState["showSelection"] = true
-        }
-
-        fun dismissSelection() {
-            savedState["showSelection"] = false
         }
     }
