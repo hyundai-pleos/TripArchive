@@ -23,6 +23,16 @@ interface ProfileDao {
     @Query("SELECT * FROM profiles WHERE id = :id")
     suspend fun getById(id: Long): Profile?
 
+    @Query("UPDATE profiles SET nickname = :nickname, relationship = :relationship WHERE id = :id")
+    suspend fun update(
+        id: Long,
+        nickname: String,
+        relationship: ProfileRelationship,
+    ): Int
+
+    @Query("DELETE FROM profiles WHERE id = :id")
+    suspend fun delete(id: Long): Int
+
     @Query("SELECT * FROM profiles ORDER BY id ASC")
     fun observeAll(): Flow<List<Profile>>
 }

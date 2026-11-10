@@ -59,6 +59,10 @@ class ProfileSelectionViewModel
                 }
         }
 
+        fun clearSelection() {
+            savedState["selectedProfileId"] = null
+        }
+
         fun select(id: Long) {
             val profiles = (state.value as? ProfileListState.Ready)?.profiles ?: return
             if (profiles.none { it.id == id }) return

@@ -20,11 +20,67 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProfileStorageTest {
+    @Test
+    fun updatesAndDeletesPersistAndNotifyObservers() =
+        runBlocking {
+            val context = InstrumentationRegistry.getInstrumentation().targetContext
+            val name = "profile-edit-test-${System.nanoTime()}.db"
+
+            fun open() = Room.databaseBuilder(context, TripArchiveDatabase::class.java, name).build()
+            var database = open()
+            try {
+                var repository = RoomProfileRepository(database.profileDao())
+                val first = repository.create("첫째", ProfileRelationship.PARENT)
+                val second = repository.create("둘째", ProfileRelationship.CHILD)
+                val changed =
+                    async {
+                        withTimeout(5000) {
+                            repository.observeAll().first { rows -> rows.any { it.nickname == "변경" } }
+                        }
+                    }
+                assertTrue(repository.update(first, " 변경 ", ProfileRelationship.PARTNER))
+                assertEquals(Profile(first, "변경", ProfileRelationship.PARTNER), changed.await().first())
+                assertEquals(Profile(second, "둘째", ProfileRelationship.CHILD), repository.getById(second))
+                assertFalse(repository.update(-1, "없음", ProfileRelationship.PARENT))
+                try {
+                    repository.update(first, "   ", ProfileRelationship.PARENT)
+                    throw AssertionError("Blank nickname accepted")
+                } catch (_: IllegalArgumentException) {
+                    // Invalid updates must leave the stored profile intact.
+                }
+                database.close()
+                database = open()
+                repository = RoomProfileRepository(database.profileDao())
+                assertEquals(Profile(first, "변경", ProfileRelationship.PARTNER), repository.getById(first))
+                val deleted = async { withTimeout(5000) { repository.observeAll().first { rows -> rows.size == 1 } } }
+                assertTrue(repository.delete(first))
+                assertEquals(listOf(second), deleted.await().map { it.id })
+                assertFalse(repository.delete(first))
+                assertNull(repository.getById(first))
+                assertEquals(Profile(second, "둘째", ProfileRelationship.CHILD), repository.getById(second))
+                assertTrue(repository.delete(second))
+                database.close()
+                database = open()
+                assertTrue(
+                    database
+                        .profileDao()
+                        .observeAll()
+                        .first()
+                        .isEmpty(),
+                )
+            } finally {
+                database.close()
+                context.deleteDatabase(name)
+            }
+        }
+
     @Test
     fun profilesSurviveReopeningAndNotifyObservers() =
         runBlocking {
@@ -122,6 +178,14 @@ class ProfileStorageTest {
         }
 
         override suspend fun getById(id: Long): Profile? = null
+
+        override suspend fun update(
+            id: Long,
+            nickname: String,
+            relationship: ProfileRelationship,
+        ): Boolean = false
+
+        override suspend fun delete(id: Long): Boolean = false
 
         override fun observeAll(): Flow<List<Profile>> = flowOf(emptyList())
     }
