@@ -22,6 +22,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.triparchive.data.profile.MAX_PROFILES
 import com.triparchive.data.profile.ProfileRelationship
+import com.triparchive.presentation.home.HomeScreen
 import com.triparchive.presentation.onboarding.OnboardingScreen
 import com.triparchive.presentation.onboarding.ProfileScreen
 import com.triparchive.presentation.onboarding.ProfileViewModel
@@ -40,6 +41,11 @@ private data object Welcome : NavKey
 private data object Profiles : NavKey
 
 @Serializable
+private data class Home(
+    val profileId: Long,
+) : NavKey
+
+@Serializable
 private data object Nickname : NavKey
 
 @Serializable
@@ -54,8 +60,6 @@ fun OnboardingNavigation(
     val backStack = rememberNavBackStack(Startup)
     val form by viewModel.state.collectAsState()
     val listState by selectionViewModel.state.collectAsState()
-    val selectedId by selectionViewModel.selectedId.collectAsState()
-    val showSelection by selectionViewModel.showSelection.collectAsState()
     val profiles = (listState as? ProfileListState.Ready)?.profiles
     LaunchedEffect(profiles, form.savedId) {
         if (profiles != null) {
@@ -71,6 +75,11 @@ fun OnboardingNavigation(
             } else if (backStack.lastOrNull() == Profiles && profiles.isEmpty()) {
                 backStack.clear()
                 backStack.add(Welcome)
+            } else if (backStack.lastOrNull() is Home &&
+                profiles.none { it.id == (backStack.lastOrNull() as Home).profileId }
+            ) {
+                backStack.clear()
+                backStack.add(if (profiles.isEmpty()) Welcome else Profiles)
             }
         }
     }
@@ -121,7 +130,23 @@ fun OnboardingNavigation(
                         ) { CircularProgressIndicator() }
                     }
                     entry<Welcome> { OnboardingScreen(onStart = addProfile) }
-                    entry<Profiles> { ProfileSelectionScreen(profiles, selectionViewModel::select, addProfile) }
+                    entry<Profiles> {
+                        ProfileSelectionScreen(
+                            profiles,
+                            { id ->
+                                if (backStack.lastOrNull() == Profiles && profiles.any { it.id == id }) {
+                                    selectionViewModel.select(id)
+                                    backStack.add(Home(id))
+                                }
+                            },
+                            addProfile,
+                        )
+                    }
+                    entry<Home> { home ->
+                        profiles.firstOrNull { it.id == home.profileId }?.let { profile ->
+                            HomeScreen(profile = profile)
+                        }
+                    }
                     entry<Nickname> {
                         ProfileScreen(
                             false,
@@ -164,15 +189,6 @@ fun OnboardingNavigation(
                 text = { Text(message) },
                 confirmButton = { TextButton(onClick = viewModel::save) { Text("다시 시도") } },
                 dismissButton = { TextButton(onClick = viewModel::dismissMessage) { Text("닫기") } },
-            )
-        }
-        val selected = profiles.firstOrNull { it.id == selectedId }
-        if (showSelection && selected != null) {
-            AlertDialog(
-                onDismissRequest = selectionViewModel::dismissSelection,
-                title = { Text("프로필을 선택했어요") },
-                text = { Text(selected.nickname) },
-                confirmButton = { TextButton(onClick = selectionViewModel::dismissSelection) { Text("확인") } },
             )
         }
     }

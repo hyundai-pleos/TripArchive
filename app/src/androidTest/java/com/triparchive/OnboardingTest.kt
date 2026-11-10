@@ -1,6 +1,7 @@
 package com.triparchive
 
 import android.graphics.Bitmap
+import androidx.activity.ComponentActivity
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -8,7 +9,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -33,7 +34,7 @@ import java.io.File
 
 class OnboardingTest {
     @get:Rule
-    val compose = createComposeRule()
+    val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
     fun emptyStartupCreatesProfileAndNewSessionShowsSelection() {
@@ -55,15 +56,14 @@ class OnboardingTest {
         compose.onNodeWithText("프로필 만들기").performClick()
         compose.onNodeWithText("누구와 여행을 시작할까요?").assertIsDisplayed()
         compose.onNodeWithText("준").performClick()
-        compose.onNodeWithText("프로필을 선택했어요").assertIsDisplayed()
-        compose.onNodeWithText("확인").performClick()
-        compose.onNodeWithText("프로필 추가").performClick()
-        compose.onNodeWithContentDescription("뒤로").performClick()
-        compose.onNodeWithText("누구와 여행을 시작할까요?").assertIsDisplayed()
+        compose.onNodeWithText("준님").assertIsDisplayed()
         compose.runOnIdle { session.intValue++ }
         compose.onNodeWithText("누구와 여행을 시작할까요?").assertIsDisplayed()
         compose.onNodeWithText("여행 시작하기").assertDoesNotExist()
-        compose.onNodeWithText("프로필을 선택했어요").assertDoesNotExist()
+        compose.onNodeWithText("준님").assertDoesNotExist()
+        compose.onNodeWithText("프로필 추가").performClick()
+        compose.onNodeWithContentDescription("뒤로").performClick()
+        compose.onNodeWithText("누구와 여행을 시작할까요?").assertIsDisplayed()
         assertEquals(1, repository.profiles.value.size)
     }
 
@@ -94,7 +94,13 @@ class OnboardingTest {
         ).writeText(android.util.Base64.encodeToString(bytes.toByteArray(), android.util.Base64.NO_WRAP))
         compose.onNodeWithText("사용자4").performClick()
         compose.runOnIdle { assertEquals(4L, selection.selectedId.value) }
-        compose.onNodeWithText("프로필을 선택했어요").assertIsDisplayed()
+        compose.onNodeWithText("사용자4님").assertIsDisplayed()
+        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
+        compose.onNodeWithText("누구와 여행을 시작할까요?").assertIsDisplayed()
+        compose.onNodeWithText("사용자1").performClick()
+        compose.runOnIdle { assertEquals(1L, selection.selectedId.value) }
+        compose.onNodeWithText("사용자1님").assertIsDisplayed()
+        compose.onNodeWithText("사용자4님").assertDoesNotExist()
     }
 
     @Test
