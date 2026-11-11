@@ -24,11 +24,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.res.painterResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
+import com.triparchive.R
 import com.triparchive.data.profile.MAX_PROFILES
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.presentation.home.CharacterRenderResources
@@ -170,14 +172,17 @@ fun OnboardingNavigation(
         }
     }
     var laidOutHome by remember { mutableStateOf<Home?>(null) }
-    val onProfileList = backStack.lastOrNull() == Profiles
+    val currentRoute = backStack.lastOrNull()
+    val onProfileList = currentRoute == Profiles
+    val inProfileFlow = Profiles in backStack
+    val homeBackground = if (inProfileFlow) painterResource(R.drawable.home_street_background) else null
     // Keep each profile's scene alive while the profile list stays in the back stack.
     val characterRelationships =
-        if (Profiles in backStack) profiles.map { it.relationship }.toSet() else emptySet()
+        if (inProfileFlow) profiles.map { it.relationship }.toSet() else emptySet()
     CharacterRenderResources(
-        relationshipsToPrepare = if (onProfileList) characterRelationships else emptySet(),
+        hasCharacters = characterRelationships.isNotEmpty(),
         modifier = modifier,
-    ) {
+    ) { resourcesReady ->
         NavDisplay(
             backStack = backStack,
             onBack = {
@@ -225,6 +230,7 @@ fun OnboardingNavigation(
                                 },
                                 renderCharacter = false,
                                 modifier = Modifier.onGloballyPositioned { laidOutHome = home },
+                                background = homeBackground ?: painterResource(R.drawable.home_street_background),
                             )
                         }
                     }
@@ -308,16 +314,19 @@ fun OnboardingNavigation(
                     }
                 },
         )
-        val visibleHome = laidOutHome?.takeIf { backStack.lastOrNull() == it }
-        val homeRelationship = profiles.firstOrNull { it.id == visibleHome?.profileId }?.relationship
-        // Prepare the adult model first because its outfit uses an additional sheen shader.
-        for (relationship in characterRelationships.sortedBy { it != ProfileRelationship.PARTNER }) {
-            key(relationship) {
-                RetainedHomeCharacter(
-                    relationship = relationship,
-                    visible = relationship == homeRelationship,
-                    prepare = onProfileList,
-                )
+        val home = currentRoute as? Home
+        val homeRelationship = profiles.firstOrNull { it.id == home?.profileId }?.relationship
+        if (resourcesReady) {
+            // Prepare the adult model first because its outfit uses an additional sheen shader.
+            for (relationship in characterRelationships.sortedBy { it != ProfileRelationship.PARTNER }) {
+                key(relationship) {
+                    RetainedHomeCharacter(
+                        relationship = relationship,
+                        visible = relationship == homeRelationship && laidOutHome == home,
+                        active = relationship == homeRelationship,
+                        prepare = onProfileList,
+                    )
+                }
             }
         }
         form.error?.let { message ->

@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.paint
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -47,13 +48,14 @@ fun HomeScreen(
     onProfileClick: () -> Unit = {},
     renderCharacter: Boolean = true,
     modifier: Modifier = Modifier,
+    background: Painter = painterResource(R.drawable.home_street_background),
 ) {
     BoxWithConstraints(
         modifier
             .fillMaxSize()
             .background(Brush.verticalGradient(listOf(Color(0xFFC9FFFF), Color.White)))
             .paint(
-                painter = painterResource(R.drawable.home_street_background),
+                painter = background,
                 sizeToIntrinsics = false,
                 contentScale = ContentScale.Crop,
             ).safeDrawingPadding(),
@@ -123,12 +125,13 @@ fun HomeScreen(
 internal fun RetainedHomeCharacter(
     relationship: ProfileRelationship,
     visible: Boolean,
+    active: Boolean,
     prepare: Boolean,
 ) {
     BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
         val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
         val visibility = if (visible) Modifier else Modifier.offset(y = maxHeight).alpha(0f)
-        HomeCharacter(relationship, scale, visibility, visible, prepare)
+        HomeCharacter(relationship, scale, visibility, active, prepare)
     }
 }
 
@@ -137,7 +140,7 @@ private fun BoxWithConstraintsScope.HomeCharacter(
     relationship: ProfileRelationship,
     scale: Float,
     modifier: Modifier = Modifier,
-    visible: Boolean = true,
+    active: Boolean = true,
     prepare: Boolean = false,
 ) {
     ProfileCharacter(
@@ -148,7 +151,7 @@ private fun BoxWithConstraintsScope.HomeCharacter(
                 .then(modifier)
                 .width((640 * scale).dp)
                 .height((760 * scale).dp),
-        visible = visible,
+        active = active,
         prepare = prepare,
     )
 }

@@ -1,6 +1,7 @@
 package com.triparchive.presentation.home
 
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -36,14 +37,13 @@ import io.github.sceneview.rememberView
 internal fun ProfileCharacter(
     relationship: ProfileRelationship,
     modifier: Modifier = Modifier,
-    visible: Boolean = true,
+    active: Boolean = true,
     prepare: Boolean = false,
 ) {
     if (LocalInspectionMode.current) return
 
     val assetPath = relationship.characterAssetPath()
     val sharedLoader = LocalCharacterModelLoader.current
-    if (prepare && !visible && sharedLoader == null) return
     val engine = sharedLoader?.engine ?: rememberCharacterEngine()
     val modelLoader = sharedLoader ?: rememberModelLoader(engine)
     val renderView = rememberView(engine)
@@ -52,7 +52,7 @@ internal fun ProfileCharacter(
     val renderLifecycle =
         rememberLifecycleOwner(
             maxLifecycle =
-                if (visible || (prepare && !prepared)) Lifecycle.State.RESUMED else Lifecycle.State.STARTED,
+                if (active || (prepare && !prepared)) Lifecycle.State.RESUMED else Lifecycle.State.STARTED,
         ).lifecycle
     val camera =
         rememberCameraNode(engine) {
@@ -108,19 +108,19 @@ private val LocalCharacterModelLoader = staticCompositionLocalOf<ModelLoader?> {
 
 @Composable
 internal fun CharacterRenderResources(
-    relationshipsToPrepare: Set<ProfileRelationship>,
+    hasCharacters: Boolean,
     modifier: Modifier = Modifier,
-    content: @Composable () -> Unit,
+    content: @Composable (resourcesReady: Boolean) -> Unit,
 ) {
     if (LocalInspectionMode.current) {
-        Box(modifier) { content() }
+        Box(modifier) { content(false) }
         return
     }
 
     // Let the profile list draw before creating the engine and preparing its materials.
     var prepare by remember { mutableStateOf(false) }
-    LaunchedEffect(relationshipsToPrepare) {
-        if (relationshipsToPrepare.isNotEmpty()) {
+    LaunchedEffect(hasCharacters) {
+        if (hasCharacters && !prepare) {
             withFrameNanos { }
             withFrameNanos { }
             prepare = true
@@ -128,12 +128,15 @@ internal fun CharacterRenderResources(
     }
     val loader = if (prepare) rememberModelLoader(rememberCharacterEngine()) else null
     CompositionLocalProvider(LocalCharacterModelLoader provides loader) {
-        Box(modifier) { content() }
+        Box(modifier) { content(loader != null) }
     }
 }
 
 @Composable
 private fun rememberCharacterEngine(): Engine {
+    // The Pleos emulator exposes Vulkan through a CPU renderer and OpenGL through the host GPU.
+    if (Build.HARDWARE == "ranchu") return rememberEngine()
+
     val packageManager = LocalContext.current.packageManager
     val supportsVulkan =
         remember(packageManager) {
