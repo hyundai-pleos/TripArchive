@@ -5,6 +5,7 @@ import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalInspectionMode
 import com.triparchive.data.profile.ProfileRelationship
+import io.github.sceneview.RenderQuality
 import io.github.sceneview.SceneView
 import io.github.sceneview.SurfaceType
 import io.github.sceneview.math.Position
@@ -37,6 +38,7 @@ internal fun ProfileCharacter(
         modifier = modifier,
         surfaceType = SurfaceType.TextureSurface,
         isOpaque = false,
+        renderQuality = RenderQuality.Performance,
         engine = engine,
         autoCenterContent = false,
         mainLightNode = rememberMainLightNode(engine) {
