@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
@@ -34,8 +35,9 @@ import com.triparchive.R
 import com.triparchive.data.profile.MAX_PROFILES
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.presentation.home.CharacterRenderResources
-import com.triparchive.presentation.home.HomeScreen
+import com.triparchive.presentation.home.DestinationHome
 import com.triparchive.presentation.home.RetainedHomeCharacter
+import com.triparchive.presentation.home.homeBackground
 import com.triparchive.presentation.management.ManagementEvent
 import com.triparchive.presentation.management.ProfileEditScreen
 import com.triparchive.presentation.management.ProfileManagementScreen
@@ -183,6 +185,9 @@ fun OnboardingNavigation(
         hasCharacters = characterRelationships.isNotEmpty(),
         modifier = modifier,
     ) { resourcesReady ->
+        if (currentRoute is Home && homeBackground != null) {
+            Box(Modifier.fillMaxSize().zIndex(-2f).homeBackground(homeBackground))
+        }
         NavDisplay(
             backStack = backStack,
             onBack = {
@@ -223,14 +228,19 @@ fun OnboardingNavigation(
                                     if (laidOutHome == home) laidOutHome = null
                                 }
                             }
-                            HomeScreen(
+                            DestinationHome(
                                 profile = profile,
                                 onProfileClick = {
                                     if (backStack.lastOrNull() == home) backStack.add(ManageProfile(profile.id))
                                 },
+                                onFinish = {
+                                    selectionViewModel.clearSelection()
+                                    backStack.clear()
+                                    backStack.add(Profiles)
+                                },
                                 renderCharacter = false,
                                 modifier = Modifier.onGloballyPositioned { laidOutHome = home },
-                                background = homeBackground ?: painterResource(R.drawable.home_street_background),
+                                drawBackground = false,
                             )
                         }
                     }

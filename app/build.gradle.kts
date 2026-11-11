@@ -30,14 +30,28 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    testBuildType = providers.gradleProperty("testBuildType").getOrElse("debug")
+
     buildTypes {
+        debug {
+            buildConfigField("boolean", "ARRIVAL_DEMO", "false")
+        }
         release {
+            buildConfigField("boolean", "ARRIVAL_DEMO", "false")
             optimization {
                 enable = false
             }
         }
     }
+    buildTypes.create("demo") {
+        initWith(buildTypes.getByName("debug"))
+        matchingFallbacks += "debug"
+        applicationIdSuffix = ".demo"
+        versionNameSuffix = "-demo"
+        buildConfigField("boolean", "ARRIVAL_DEMO", "true")
+    }
     buildFeatures {
+        buildConfig = true
         compose = true
     }
 
@@ -71,6 +85,7 @@ dependencies {
     ksp(libs.dagger.hilt.compiler)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+    "demoImplementation"(libs.androidx.compose.ui.test.manifest)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.junit)

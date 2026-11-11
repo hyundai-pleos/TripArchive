@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -52,17 +53,13 @@ fun HomeScreen(
     onProfileClick: () -> Unit = {},
     renderCharacter: Boolean = true,
     modifier: Modifier = Modifier,
-    background: Painter = painterResource(R.drawable.home_street_background),
+    background: Painter? = painterResource(R.drawable.home_street_background),
 ) {
     BoxWithConstraints(
         modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Color(0xFFC9FFFF), Color.White)))
-            .paint(
-                painter = background,
-                sizeToIntrinsics = false,
-                contentScale = ContentScale.Crop,
-            ).windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout)),
+            .then(if (background == null) Modifier else Modifier.homeBackground(background))
+            .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout)),
         contentAlignment = Alignment.TopCenter,
     ) {
         val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
@@ -73,7 +70,7 @@ fun HomeScreen(
         Row(
             modifier =
                 Modifier
-                    .width((840 * scale).dp)
+                    .fillMaxWidth()
                     .padding(start = (56 * scale).dp, end = (56 * scale).dp, top = (48 * scale).dp)
                     .height((80 * scale).dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -125,6 +122,10 @@ fun HomeScreen(
     }
 }
 
+internal fun Modifier.homeBackground(painter: Painter): Modifier =
+    background(Brush.verticalGradient(listOf(Color(0xFFC9FFFF), Color.White)))
+        .paint(painter, sizeToIntrinsics = false, contentScale = ContentScale.Crop)
+
 @Composable
 internal fun RetainedHomeCharacter(
     relationship: ProfileRelationship,
@@ -135,7 +136,7 @@ internal fun RetainedHomeCharacter(
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
-            .zIndex(if (visible) 1f else -1f)
+            .zIndex(-1f)
             .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout)),
     ) {
         val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
