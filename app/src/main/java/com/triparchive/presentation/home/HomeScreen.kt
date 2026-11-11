@@ -24,10 +24,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.paint
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -140,7 +140,7 @@ internal fun RetainedHomeCharacter(
             .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout)),
     ) {
         val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
-        val visibility = if (visible) Modifier else Modifier.alpha(0f)
+        val visibility = Modifier.graphicsLayer { alpha = if (visible) 1f else 0f }
         HomeCharacter(relationship, scale, visibility, active, prepare)
     }
 }

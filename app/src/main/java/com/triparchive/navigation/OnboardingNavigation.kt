@@ -13,17 +13,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -173,7 +168,6 @@ fun OnboardingNavigation(
             backStack.add(Nickname)
         }
     }
-    var laidOutHome by remember { mutableStateOf<Home?>(null) }
     val currentRoute = backStack.lastOrNull()
     val onProfileList = currentRoute == Profiles
     val inProfileFlow = Profiles in backStack
@@ -223,23 +217,18 @@ fun OnboardingNavigation(
                     }
                     entry<Home>(metadata = instantTransitionMetadata) { home ->
                         profiles.firstOrNull { it.id == home.profileId }?.let { profile ->
-                            DisposableEffect(home) {
-                                onDispose {
-                                    if (laidOutHome == home) laidOutHome = null
-                                }
-                            }
                             DestinationHome(
                                 profile = profile,
                                 onProfileClick = {
                                     if (backStack.lastOrNull() == home) backStack.add(ManageProfile(profile.id))
                                 },
                                 onFinish = {
-                                    selectionViewModel.clearSelection()
-                                    backStack.clear()
-                                    backStack.add(Profiles)
+                                    if (backStack.lastOrNull() == home) {
+                                        selectionViewModel.clearSelection()
+                                        backStack.removeLastOrNull()
+                                    }
                                 },
                                 renderCharacter = false,
-                                modifier = Modifier.onGloballyPositioned { laidOutHome = home },
                                 drawBackground = false,
                             )
                         }
@@ -332,7 +321,7 @@ fun OnboardingNavigation(
                 key(relationship) {
                     RetainedHomeCharacter(
                         relationship = relationship,
-                        visible = relationship == homeRelationship && laidOutHome == home,
+                        visible = relationship == homeRelationship,
                         active = relationship == homeRelationship,
                         prepare = onProfileList,
                     )
