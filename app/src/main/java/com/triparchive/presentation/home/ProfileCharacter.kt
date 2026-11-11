@@ -1,5 +1,6 @@
 package com.triparchive.presentation.home
 
+import android.content.pm.PackageManager
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -12,7 +13,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
+import com.google.android.filament.Engine
 import com.google.android.filament.Material
 import com.triparchive.data.profile.ProfileRelationship
 import io.github.sceneview.RenderQuality
@@ -36,7 +39,7 @@ internal fun ProfileCharacter(
 
     val assetPath = relationship.characterAssetPath()
     val sharedLoader = LocalCharacterModelLoader.current
-    val engine = sharedLoader?.engine ?: rememberEngine()
+    val engine = sharedLoader?.engine ?: rememberCharacterEngine()
     val modelLoader = sharedLoader ?: rememberModelLoader(engine)
     val renderView = rememberView(engine)
     val camera = rememberCameraNode(engine) {
@@ -103,7 +106,7 @@ internal fun CharacterRenderResources(
             prepare = true
         }
     }
-    val loader = if (prepare) rememberModelLoader(rememberEngine()) else null
+    val loader = if (prepare) rememberModelLoader(rememberCharacterEngine()) else null
     if (loader != null) {
         val preparedRelationships = remember(loader) { mutableSetOf<ProfileRelationship>() }
         LaunchedEffect(loader, relationshipsToPrepare) {
@@ -132,6 +135,28 @@ internal fun CharacterRenderResources(
     CompositionLocalProvider(LocalCharacterModelLoader provides loader) {
         Box(modifier) { content() }
     }
+}
+
+@Composable
+private fun rememberCharacterEngine(): Engine {
+    val packageManager = LocalContext.current.packageManager
+    val supportsVulkan = remember(packageManager) {
+        packageManager.hasSystemFeature(PackageManager.FEATURE_VULKAN_HARDWARE_VERSION, 0x00401000)
+    }
+    return rememberEngine(
+        engineCreator = { eglContext ->
+            val vulkan = if (supportsVulkan) {
+                try {
+                    Engine.create(Engine.Backend.VULKAN)
+                } catch (_: IllegalStateException) {
+                    null
+                }
+            } else {
+                null
+            }
+            vulkan ?: (eglContext?.let { Engine.create(it) } ?: Engine.create())
+        },
+    )
 }
 
 private fun ProfileRelationship.characterAssetPath(): String =
