@@ -13,12 +13,17 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
@@ -164,9 +169,13 @@ fun OnboardingNavigation(
             backStack.add(Nickname)
         }
     }
+    var laidOutHome by remember { mutableStateOf<Home?>(null) }
+    val onProfileList = backStack.lastOrNull() == Profiles
+    // Keep each profile's scene alive while the profile list stays in the back stack.
+    val characterRelationships =
+        if (Profiles in backStack) profiles.map { it.relationship }.toSet() else emptySet()
     CharacterRenderResources(
-        relationshipsToPrepare =
-            if (backStack.lastOrNull() == Profiles) profiles.map { it.relationship }.toSet() else emptySet(),
+        relationshipsToPrepare = if (onProfileList) characterRelationships else emptySet(),
         modifier = modifier,
     ) {
         NavDisplay(
@@ -204,12 +213,18 @@ fun OnboardingNavigation(
                     }
                     entry<Home>(metadata = instantTransitionMetadata) { home ->
                         profiles.firstOrNull { it.id == home.profileId }?.let { profile ->
+                            DisposableEffect(home) {
+                                onDispose {
+                                    if (laidOutHome == home) laidOutHome = null
+                                }
+                            }
                             HomeScreen(
                                 profile = profile,
                                 onProfileClick = {
                                     if (backStack.lastOrNull() == home) backStack.add(ManageProfile(profile.id))
                                 },
                                 renderCharacter = false,
+                                modifier = Modifier.onGloballyPositioned { laidOutHome = home },
                             )
                         }
                     }
@@ -293,17 +308,14 @@ fun OnboardingNavigation(
                     }
                 },
         )
-        val home = backStack.filterIsInstance<Home>().lastOrNull()
-        val homeRelationship = profiles.firstOrNull { it.id == home?.profileId }?.relationship
-        val onProfileList = backStack.lastOrNull() == Profiles
-        val characterRelationships =
-            if (onProfileList) profiles.map { it.relationship }.toSet() else setOfNotNull(homeRelationship)
+        val visibleHome = laidOutHome?.takeIf { backStack.lastOrNull() == it }
+        val homeRelationship = profiles.firstOrNull { it.id == visibleHome?.profileId }?.relationship
         // Prepare the adult model first because its outfit uses an additional sheen shader.
         for (relationship in characterRelationships.sortedBy { it != ProfileRelationship.PARTNER }) {
             key(relationship) {
                 RetainedHomeCharacter(
                     relationship = relationship,
-                    visible = home != null && backStack.lastOrNull() == home,
+                    visible = relationship == homeRelationship,
                     prepare = onProfileList,
                 )
             }

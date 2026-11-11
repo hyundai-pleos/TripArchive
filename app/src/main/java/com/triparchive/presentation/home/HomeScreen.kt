@@ -46,9 +46,10 @@ fun HomeScreen(
     profile: Profile,
     onProfileClick: () -> Unit = {},
     renderCharacter: Boolean = true,
+    modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(
-        Modifier
+        modifier
             .fillMaxSize()
             .background(Brush.verticalGradient(listOf(Color(0xFFC9FFFF), Color.White)))
             .paint(
