@@ -46,7 +46,7 @@ internal fun ProfileCharacter(
 
     SceneView(
         modifier = modifier,
-        surfaceType = SurfaceType.Surface,
+        surfaceType = SurfaceType.TextureSurface,
         isOpaque = false,
         renderQuality = RenderQuality.Performance,
         engine = engine,
