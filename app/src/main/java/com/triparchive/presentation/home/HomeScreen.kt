@@ -8,12 +8,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.BoxWithConstraintsScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -58,7 +62,7 @@ fun HomeScreen(
                 painter = background,
                 sizeToIntrinsics = false,
                 contentScale = ContentScale.Crop,
-            ).safeDrawingPadding(),
+            ).windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout)),
         contentAlignment = Alignment.TopCenter,
     ) {
         val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
@@ -132,7 +136,7 @@ internal fun RetainedHomeCharacter(
         Modifier
             .fillMaxSize()
             .zIndex(if (visible) 1f else -1f)
-            .safeDrawingPadding(),
+            .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout)),
     ) {
         val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
         val visibility = if (visible) Modifier else Modifier.alpha(0f)
