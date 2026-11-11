@@ -49,14 +49,16 @@ internal fun ProfileCharacter(
     val renderView = rememberView(engine)
     var prepared by remember(assetPath) { mutableStateOf(false) }
     var modelAttached by remember(assetPath) { mutableStateOf(false) }
-    val renderLifecycle = rememberLifecycleOwner(
-        maxLifecycle =
-            if (visible || (prepare && !prepared)) Lifecycle.State.RESUMED else Lifecycle.State.STARTED,
-    ).lifecycle
-    val camera = rememberCameraNode(engine) {
-        position = Position(z = 2.05f)
-        lookAt(Position(0f, 0f, 0f))
-    }
+    val renderLifecycle =
+        rememberLifecycleOwner(
+            maxLifecycle =
+                if (visible || (prepare && !prepared)) Lifecycle.State.RESUMED else Lifecycle.State.STARTED,
+        ).lifecycle
+    val camera =
+        rememberCameraNode(engine) {
+            position = Position(z = 2.05f)
+            lookAt(Position(0f, 0f, 0f))
+        }
 
     SceneView(
         modifier = modifier,
@@ -67,9 +69,10 @@ internal fun ProfileCharacter(
         modelLoader = modelLoader,
         view = renderView,
         autoCenterContent = false,
-        mainLightNode = rememberMainLightNode(engine) {
-            intensity = 60_000f
-        },
+        mainLightNode =
+            rememberMainLightNode(engine) {
+                intensity = 60_000f
+            },
         fillLightNode = null,
         cameraNode = camera,
         cameraManipulator = null,
@@ -94,9 +97,10 @@ internal fun ProfileCharacter(
     }
     LaunchedEffect(renderView) {
         // Keep the character sharp at the surface's native resolution.
-        renderView.dynamicResolutionOptions = renderView.dynamicResolutionOptions.apply {
-            enabled = false
-        }
+        renderView.dynamicResolutionOptions =
+            renderView.dynamicResolutionOptions.apply {
+                enabled = false
+            }
     }
 }
 
@@ -131,20 +135,22 @@ internal fun CharacterRenderResources(
 @Composable
 private fun rememberCharacterEngine(): Engine {
     val packageManager = LocalContext.current.packageManager
-    val supportsVulkan = remember(packageManager) {
-        packageManager.hasSystemFeature(PackageManager.FEATURE_VULKAN_HARDWARE_VERSION, 0x00401000)
-    }
+    val supportsVulkan =
+        remember(packageManager) {
+            packageManager.hasSystemFeature(PackageManager.FEATURE_VULKAN_HARDWARE_VERSION, 0x00401000)
+        }
     return rememberEngine(
         engineCreator = { eglContext ->
-            val vulkan = if (supportsVulkan) {
-                try {
-                    Engine.create(Engine.Backend.VULKAN)
-                } catch (_: IllegalStateException) {
+            val vulkan =
+                if (supportsVulkan) {
+                    try {
+                        Engine.create(Engine.Backend.VULKAN)
+                    } catch (_: IllegalStateException) {
+                        null
+                    }
+                } else {
                     null
                 }
-            } else {
-                null
-            }
             vulkan ?: (eglContext?.let { Engine.create(it) } ?: Engine.create())
         },
     )
