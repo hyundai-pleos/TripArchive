@@ -43,7 +43,7 @@ internal fun HomeDestinationSheet(
     val shape = RoundedCornerShape(topStart = (40 * scale).dp, topEnd = (40 * scale).dp)
     Column(
         modifier
-            .width((840 * scale).dp)
+            .fillMaxWidth()
             .height(((if (destination == null) 339 else 343) * scale).dp)
             .background(Pink, shape)
             .padding(top = (3 * scale).dp)
@@ -94,12 +94,14 @@ internal fun HomeDestinationSheet(
     }
 }
 
+@Preview(widthDp = 1280, heightDp = 339)
 @Preview(widthDp = 840, heightDp = 339)
 @Composable
 private fun NoDestinationPreview() {
     TripArchiveTheme { HomeDestinationSheet("사용자1", null, 1f, {}) }
 }
 
+@Preview(widthDp = 1280, heightDp = 343)
 @Preview(widthDp = 840, heightDp = 343)
 @Composable
 private fun ActiveDestinationPreview() {
