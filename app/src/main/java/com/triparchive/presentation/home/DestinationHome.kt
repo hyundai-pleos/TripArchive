@@ -48,6 +48,7 @@ import com.triparchive.R
 import com.triparchive.data.navigation.DestinationState
 import com.triparchive.data.navigation.PleosDestinationSource
 import com.triparchive.data.profile.Profile
+import com.triparchive.presentation.home.components.HomeDestinationSheet
 import com.triparchive.presentation.management.ActionButton
 import com.triparchive.presentation.management.BackControl
 import com.triparchive.presentation.management.Gray
@@ -86,31 +87,13 @@ fun DestinationHome(
         val s = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
         if (arrival == null) {
             HomeScreen(profile, onProfileClick)
-            if (destination.routing && destination.name != null) {
-                Column(
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .width((840 * s).dp)
-                        .background(Color.White, RoundedCornerShape(topStart = (40 * s).dp, topEnd = (40 * s).dp))
-                        .padding((28 * s).dp),
-                    verticalArrangement = Arrangement.spacedBy((24 * s).dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(painterResource(R.drawable.destination_flag), null, Modifier.size((48 * s).dp))
-                        Spacer(Modifier.width((10 * s).dp))
-                        Text(
-                            destination.name.orEmpty(),
-                            color = Ink,
-                            fontSize = (28 * s).sp,
-                            lineHeight = (42 * s).sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    ActionButton("여행 마치기", Pink, s, true, { confirm = true }, Modifier.fillMaxWidth())
-                }
-            }
+            HomeDestinationSheet(
+                nickname = profile.nickname,
+                destination = destination.name?.takeIf { destination.routing && it.isNotBlank() },
+                scale = s,
+                onFinish = { confirm = true },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         } else {
             BackHandler(enabled = !confirm) { acknowledgeArrival() }
             Column(

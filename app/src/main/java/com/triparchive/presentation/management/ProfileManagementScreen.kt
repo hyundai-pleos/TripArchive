@@ -204,6 +204,7 @@ internal fun ActionButton(
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    textColor: Color = Color.White,
 ) {
     Box(
         modifier
@@ -220,7 +221,7 @@ internal fun ActionButton(
     ) {
         Text(
             text,
-            color = Color.White,
+            color = textColor,
             fontSize = (32 * s).sp,
             lineHeight = (44 * s).sp,
             fontWeight = FontWeight.SemiBold,
