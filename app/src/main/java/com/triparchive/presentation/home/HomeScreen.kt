@@ -45,6 +45,15 @@ fun HomeScreen(
         contentAlignment = Alignment.TopCenter,
     ) {
         val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
+        ProfileCharacter(
+            relationship = profile.relationship,
+            modifier =
+                Modifier
+                    .align(Alignment.Center)
+                    .width((640 * scale).dp)
+                    .height((760 * scale).dp),
+        )
+
         Row(
             modifier =
                 Modifier
