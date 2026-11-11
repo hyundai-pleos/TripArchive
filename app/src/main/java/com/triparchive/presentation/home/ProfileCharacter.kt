@@ -25,6 +25,7 @@ import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberMainLightNode
 import io.github.sceneview.rememberModelInstance
 import io.github.sceneview.rememberModelLoader
+import io.github.sceneview.rememberView
 
 @Composable
 internal fun ProfileCharacter(
@@ -37,6 +38,7 @@ internal fun ProfileCharacter(
     val sharedLoader = LocalCharacterModelLoader.current
     val engine = sharedLoader?.engine ?: rememberEngine()
     val modelLoader = sharedLoader ?: rememberModelLoader(engine)
+    val renderView = rememberView(engine)
     val camera = rememberCameraNode(engine) {
         position = Position(z = 2.05f)
         lookAt(Position(0f, 0f, 0f))
@@ -49,6 +51,7 @@ internal fun ProfileCharacter(
         renderQuality = RenderQuality.Performance,
         engine = engine,
         modelLoader = modelLoader,
+        view = renderView,
         autoCenterContent = false,
         mainLightNode = rememberMainLightNode(engine) {
             intensity = 60_000f
@@ -68,6 +71,12 @@ internal fun ProfileCharacter(
                     centerOrigin = Position(0f, 0f, 0f),
                 )
             }
+        }
+    }
+    LaunchedEffect(renderView) {
+        // Keep the character sharp at the surface's native resolution.
+        renderView.dynamicResolutionOptions = renderView.dynamicResolutionOptions.apply {
+            enabled = false
         }
     }
 }
