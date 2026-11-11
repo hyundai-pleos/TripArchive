@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -27,6 +28,7 @@ import com.triparchive.data.profile.MAX_PROFILES
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.presentation.home.CharacterRenderResources
 import com.triparchive.presentation.home.HomeScreen
+import com.triparchive.presentation.home.RetainedHomeCharacter
 import com.triparchive.presentation.management.ManagementEvent
 import com.triparchive.presentation.management.ProfileEditScreen
 import com.triparchive.presentation.management.ProfileManagementScreen
@@ -68,6 +70,11 @@ private data object Nickname : NavKey
 
 @Serializable
 private data object Relationship : NavKey
+
+private val instantTransitionMetadata =
+    NavDisplay.transitionSpec { EnterTransition.None togetherWith ExitTransition.None } +
+        NavDisplay.popTransitionSpec { EnterTransition.None togetherWith ExitTransition.None } +
+        NavDisplay.predictivePopTransitionSpec { EnterTransition.None togetherWith ExitTransition.None }
 
 @Composable
 fun OnboardingNavigation(
@@ -195,19 +202,18 @@ fun OnboardingNavigation(
                             addProfile,
                         )
                     }
-                    entry<Home>(
-                        metadata =
-                            NavDisplay.transitionSpec { EnterTransition.None togetherWith ExitTransition.None } +
-                                NavDisplay.popTransitionSpec { EnterTransition.None togetherWith ExitTransition.None } +
-                                NavDisplay.predictivePopTransitionSpec { EnterTransition.None togetherWith ExitTransition.None },
-                    ) { home ->
+                    entry<Home>(metadata = instantTransitionMetadata) { home ->
                         profiles.firstOrNull { it.id == home.profileId }?.let { profile ->
-                            HomeScreen(profile = profile, onProfileClick = {
-                                if (backStack.lastOrNull() == home) backStack.add(ManageProfile(profile.id))
-                            })
+                            HomeScreen(
+                                profile = profile,
+                                onProfileClick = {
+                                    if (backStack.lastOrNull() == home) backStack.add(ManageProfile(profile.id))
+                                },
+                                renderCharacter = false,
+                            )
                         }
                     }
-                    entry<ManageProfile> { route ->
+                    entry<ManageProfile>(metadata = instantTransitionMetadata) { route ->
                         profiles.firstOrNull { it.id == route.profileId }?.let { profile ->
                             ProfileManagementScreen(
                                 profile = profile,
@@ -287,6 +293,16 @@ fun OnboardingNavigation(
                     }
                 },
         )
+        backStack.filterIsInstance<Home>().lastOrNull()?.let { home ->
+            profiles.firstOrNull { it.id == home.profileId }?.let { profile ->
+                key(profile.id) {
+                    RetainedHomeCharacter(
+                        relationship = profile.relationship,
+                        visible = backStack.lastOrNull() == home,
+                    )
+                }
+            }
+        }
         form.error?.let { message ->
             AlertDialog(
                 onDismissRequest = viewModel::dismissMessage,

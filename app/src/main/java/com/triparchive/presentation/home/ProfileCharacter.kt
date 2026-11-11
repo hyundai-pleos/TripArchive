@@ -15,6 +15,8 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.rememberLifecycleOwner
 import com.google.android.filament.Engine
 import com.google.android.filament.Material
 import com.triparchive.data.profile.ProfileRelationship
@@ -34,9 +36,13 @@ import io.github.sceneview.rememberView
 internal fun ProfileCharacter(
     relationship: ProfileRelationship,
     modifier: Modifier = Modifier,
+    visible: Boolean = true,
 ) {
     if (LocalInspectionMode.current) return
 
+    val renderLifecycle = rememberLifecycleOwner(
+        maxLifecycle = if (visible) Lifecycle.State.RESUMED else Lifecycle.State.STARTED,
+    ).lifecycle
     val assetPath = relationship.characterAssetPath()
     val sharedLoader = LocalCharacterModelLoader.current
     val engine = sharedLoader?.engine ?: rememberCharacterEngine()
@@ -62,6 +68,7 @@ internal fun ProfileCharacter(
         fillLightNode = null,
         cameraNode = camera,
         cameraManipulator = null,
+        lifecycle = renderLifecycle,
     ) {
         key(assetPath) {
             val model = rememberModelInstance(modelLoader, assetPath)

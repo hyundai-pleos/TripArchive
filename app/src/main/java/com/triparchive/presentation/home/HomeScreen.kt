@@ -6,9 +6,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.BoxWithConstraintsScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -18,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.paint
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -42,6 +45,7 @@ import com.triparchive.data.profile.ProfileRelationship
 fun HomeScreen(
     profile: Profile,
     onProfileClick: () -> Unit = {},
+    renderCharacter: Boolean = true,
 ) {
     BoxWithConstraints(
         Modifier
@@ -55,14 +59,9 @@ fun HomeScreen(
         contentAlignment = Alignment.TopCenter,
     ) {
         val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
-        ProfileCharacter(
-            relationship = profile.relationship,
-            modifier =
-                Modifier
-                    .align(Alignment.Center)
-                    .width((640 * scale).dp)
-                    .height((760 * scale).dp),
-        )
+        if (renderCharacter) {
+            HomeCharacter(profile.relationship, scale)
+        }
 
         Row(
             modifier =
@@ -117,6 +116,34 @@ fun HomeScreen(
             }
         }
     }
+}
+
+@Composable
+internal fun RetainedHomeCharacter(relationship: ProfileRelationship, visible: Boolean) {
+    BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
+        val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
+        val visibility = if (visible) Modifier else Modifier.offset(y = maxHeight).alpha(0f)
+        HomeCharacter(relationship, scale, visibility, visible)
+    }
+}
+
+@Composable
+private fun BoxWithConstraintsScope.HomeCharacter(
+    relationship: ProfileRelationship,
+    scale: Float,
+    modifier: Modifier = Modifier,
+    visible: Boolean = true,
+) {
+    ProfileCharacter(
+        relationship = relationship,
+        modifier =
+            Modifier
+                .align(Alignment.Center)
+                .then(modifier)
+                .width((640 * scale).dp)
+                .height((760 * scale).dp),
+        visible = visible,
+    )
 }
 
 @Preview(widthDp = 840, heightDp = 1184, showBackground = true)
