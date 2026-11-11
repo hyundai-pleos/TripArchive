@@ -42,17 +42,21 @@ class RoomTripSessionRepository
                                     newSession(profile.id, profile.relationship, TripSessionStatus.ACTIVE)
                                 }
 
-                                current.relationship != relationship || currentLook == null -> {
+                                current.status == TripSessionStatus.READY.name -> {
+                                    val matchingLook = currentLook?.takeIf { current.relationship == relationship }
                                     current.copy(
-                                        lookId = CharacterLookCatalog.choose(profile.relationship).id,
+                                        lookId =
+                                            matchingLook?.id ?: CharacterLookCatalog.choose(profile.relationship).id,
                                         relationship = relationship,
+                                        status = TripSessionStatus.ACTIVE.name,
                                         updatedAtMillis = System.currentTimeMillis(),
                                     )
                                 }
 
-                                current.status == TripSessionStatus.READY.name -> {
+                                current.relationship != relationship || currentLook == null -> {
                                     current.copy(
-                                        status = TripSessionStatus.ACTIVE.name,
+                                        lookId = CharacterLookCatalog.choose(profile.relationship).id,
+                                        relationship = relationship,
                                         updatedAtMillis = System.currentTimeMillis(),
                                     )
                                 }

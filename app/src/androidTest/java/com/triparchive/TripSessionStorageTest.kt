@@ -68,6 +68,33 @@ class TripSessionStorageTest {
         }
 
     @Test
+    fun changingRelationshipBeforeReopeningAReadySessionStillStartsActiveTrip() =
+        runBlocking {
+            val name = "trip-session-relationship-test-${System.nanoTime()}.db"
+            val database = openDatabase(name)
+            try {
+                val child = Profile(nickname = "프로필", relationship = ProfileRelationship.CHILD)
+                val profileId = database.profileDao().insert(child)
+                val repository = RoomTripSessionRepository(database, database.tripSessionDao())
+                val firstTrip = repository.openOrResume(child.copy(id = profileId))
+                val finishedTrip = checkNotNull(repository.finish(profileId, firstTrip.sessionId))
+
+                val resumed =
+                    repository.openOrResume(
+                        child.copy(id = profileId, relationship = ProfileRelationship.PARTNER),
+                    )
+
+                assertEquals(finishedTrip.sessionId, resumed.sessionId)
+                assertEquals(TripSessionStatus.ACTIVE, resumed.status)
+                assertEquals(ProfileRelationship.PARTNER.name, resumed.relationship)
+                assertTrue(resumed.lookId.startsWith("partner_"))
+            } finally {
+                database.close()
+                context.deleteDatabase(name)
+            }
+        }
+
+    @Test
     fun migrationPreservesProfilesAndCreatesAnEmptySessionTable() {
         val name = "trip-session-migration-${System.nanoTime()}.db"
         val helper = MigrationTestHelper(InstrumentationRegistry.getInstrumentation(), TripArchiveDatabase::class.java)
