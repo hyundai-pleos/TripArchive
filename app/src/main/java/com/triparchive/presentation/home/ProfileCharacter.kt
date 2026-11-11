@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -18,7 +19,6 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.rememberLifecycleOwner
 import com.google.android.filament.Engine
-import com.google.android.filament.Material
 import com.triparchive.data.profile.ProfileRelationship
 import io.github.sceneview.RenderQuality
 import io.github.sceneview.SceneView
@@ -37,17 +37,22 @@ internal fun ProfileCharacter(
     relationship: ProfileRelationship,
     modifier: Modifier = Modifier,
     visible: Boolean = true,
+    prepare: Boolean = false,
 ) {
     if (LocalInspectionMode.current) return
 
-    val renderLifecycle = rememberLifecycleOwner(
-        maxLifecycle = if (visible) Lifecycle.State.RESUMED else Lifecycle.State.STARTED,
-    ).lifecycle
     val assetPath = relationship.characterAssetPath()
     val sharedLoader = LocalCharacterModelLoader.current
+    if (prepare && !visible && sharedLoader == null) return
     val engine = sharedLoader?.engine ?: rememberCharacterEngine()
     val modelLoader = sharedLoader ?: rememberModelLoader(engine)
     val renderView = rememberView(engine)
+    var prepared by remember(assetPath) { mutableStateOf(false) }
+    var modelAttached by remember(assetPath) { mutableStateOf(false) }
+    val renderLifecycle = rememberLifecycleOwner(
+        maxLifecycle =
+            if (visible || (prepare && !prepared)) Lifecycle.State.RESUMED else Lifecycle.State.STARTED,
+    ).lifecycle
     val camera = rememberCameraNode(engine) {
         position = Position(z = 2.05f)
         lookAt(Position(0f, 0f, 0f))
@@ -69,6 +74,9 @@ internal fun ProfileCharacter(
         cameraNode = camera,
         cameraManipulator = null,
         lifecycle = renderLifecycle,
+        onFrame = {
+            if (modelAttached) prepared = true
+        },
     ) {
         key(assetPath) {
             val model = rememberModelInstance(modelLoader, assetPath)
@@ -80,6 +88,7 @@ internal fun ProfileCharacter(
                     scaleToUnits = 1f,
                     centerOrigin = Position(0f, 0f, 0f),
                 )
+                SideEffect { modelAttached = true }
             }
         }
     }
@@ -114,31 +123,6 @@ internal fun CharacterRenderResources(
         }
     }
     val loader = if (prepare) rememberModelLoader(rememberCharacterEngine()) else null
-    if (loader != null) {
-        val preparedRelationships = remember(loader) { mutableSetOf<ProfileRelationship>() }
-        LaunchedEffect(loader, relationshipsToPrepare) {
-            for (relationship in relationshipsToPrepare - preparedRelationships) {
-                val model = loader.createModel(relationship.characterAssetPath())
-                try {
-                    model.instance.materialInstances
-                        .distinctBy { it.material.name }
-                        .forEach { instance ->
-                            instance.material.compile(
-                                Material.CompilerPriorityQueue.LOW,
-                                Material.UserVariantFilterBit.DIRECTIONAL_LIGHTING,
-                                null,
-                                null,
-                            )
-                        }
-                    loader.engine.flush()
-                } finally {
-                    loader.destroyModel(model)
-                }
-                preparedRelationships += relationship
-                withFrameNanos { }
-            }
-        }
-    }
     CompositionLocalProvider(LocalCharacterModelLoader provides loader) {
         Box(modifier) { content() }
     }

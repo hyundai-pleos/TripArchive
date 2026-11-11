@@ -293,14 +293,18 @@ fun OnboardingNavigation(
                     }
                 },
         )
-        backStack.filterIsInstance<Home>().lastOrNull()?.let { home ->
-            profiles.firstOrNull { it.id == home.profileId }?.let { profile ->
-                key(profile.id) {
-                    RetainedHomeCharacter(
-                        relationship = profile.relationship,
-                        visible = backStack.lastOrNull() == home,
-                    )
-                }
+        val home = backStack.filterIsInstance<Home>().lastOrNull()
+        val homeRelationship = profiles.firstOrNull { it.id == home?.profileId }?.relationship
+        val onProfileList = backStack.lastOrNull() == Profiles
+        val characterRelationships =
+            if (onProfileList) profiles.map { it.relationship }.toSet() else setOfNotNull(homeRelationship)
+        for (relationship in characterRelationships) {
+            key(relationship) {
+                RetainedHomeCharacter(
+                    relationship = relationship,
+                    visible = home != null && backStack.lastOrNull() == home,
+                    prepare = onProfileList,
+                )
             }
         }
         form.error?.let { message ->

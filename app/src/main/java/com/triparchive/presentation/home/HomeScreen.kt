@@ -119,11 +119,15 @@ fun HomeScreen(
 }
 
 @Composable
-internal fun RetainedHomeCharacter(relationship: ProfileRelationship, visible: Boolean) {
+internal fun RetainedHomeCharacter(
+    relationship: ProfileRelationship,
+    visible: Boolean,
+    prepare: Boolean,
+) {
     BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
         val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
         val visibility = if (visible) Modifier else Modifier.offset(y = maxHeight).alpha(0f)
-        HomeCharacter(relationship, scale, visibility, visible)
+        HomeCharacter(relationship, scale, visibility, visible, prepare)
     }
 }
 
@@ -133,6 +137,7 @@ private fun BoxWithConstraintsScope.HomeCharacter(
     scale: Float,
     modifier: Modifier = Modifier,
     visible: Boolean = true,
+    prepare: Boolean = false,
 ) {
     ProfileCharacter(
         relationship = relationship,
@@ -143,6 +148,7 @@ private fun BoxWithConstraintsScope.HomeCharacter(
                 .width((640 * scale).dp)
                 .height((760 * scale).dp),
         visible = visible,
+        prepare = prepare,
     )
 }
 
