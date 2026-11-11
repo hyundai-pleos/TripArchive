@@ -298,7 +298,8 @@ fun OnboardingNavigation(
         val onProfileList = backStack.lastOrNull() == Profiles
         val characterRelationships =
             if (onProfileList) profiles.map { it.relationship }.toSet() else setOfNotNull(homeRelationship)
-        for (relationship in characterRelationships) {
+        // Prepare the adult model first because its outfit uses an additional sheen shader.
+        for (relationship in characterRelationships.sortedBy { it != ProfileRelationship.PARTNER }) {
             key(relationship) {
                 RetainedHomeCharacter(
                     relationship = relationship,
