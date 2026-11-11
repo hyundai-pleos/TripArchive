@@ -1,5 +1,8 @@
 package com.triparchive.navigation
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,16 +16,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
+import com.triparchive.R
 import com.triparchive.data.profile.MAX_PROFILES
 import com.triparchive.data.profile.ProfileRelationship
+import com.triparchive.presentation.home.CharacterRenderResources
 import com.triparchive.presentation.home.DestinationHome
+import com.triparchive.presentation.home.RetainedHomeCharacter
+import com.triparchive.presentation.home.homeBackground
 import com.triparchive.presentation.management.ManagementEvent
 import com.triparchive.presentation.management.ProfileEditScreen
 import com.triparchive.presentation.management.ProfileManagementScreen
@@ -64,6 +74,11 @@ private data object Nickname : NavKey
 
 @Serializable
 private data object Relationship : NavKey
+
+private val instantTransitionMetadata =
+    NavDisplay.transitionSpec { EnterTransition.None togetherWith ExitTransition.None } +
+        NavDisplay.popTransitionSpec { EnterTransition.None togetherWith ExitTransition.None } +
+        NavDisplay.predictivePopTransitionSpec { EnterTransition.None togetherWith ExitTransition.None }
 
 @Composable
 fun OnboardingNavigation(
@@ -153,7 +168,20 @@ fun OnboardingNavigation(
             backStack.add(Nickname)
         }
     }
-    Box(modifier) {
+    val currentRoute = backStack.lastOrNull()
+    val onProfileList = currentRoute == Profiles
+    val inProfileFlow = Profiles in backStack
+    val homeBackground = if (inProfileFlow) painterResource(R.drawable.home_street_background) else null
+    // Keep each profile's scene alive while the profile list stays in the back stack.
+    val characterRelationships =
+        if (inProfileFlow) profiles.map { it.relationship }.toSet() else emptySet()
+    CharacterRenderResources(
+        hasCharacters = characterRelationships.isNotEmpty(),
+        modifier = modifier,
+    ) { resourcesReady ->
+        if (currentRoute is Home && homeBackground != null) {
+            Box(Modifier.fillMaxSize().zIndex(-2f).homeBackground(homeBackground))
+        }
         NavDisplay(
             backStack = backStack,
             onBack = {
@@ -187,18 +215,25 @@ fun OnboardingNavigation(
                             addProfile,
                         )
                     }
-                    entry<Home> { home ->
+                    entry<Home>(metadata = instantTransitionMetadata) { home ->
                         profiles.firstOrNull { it.id == home.profileId }?.let { profile ->
-                            DestinationHome(profile = profile, onFinish = {
-                                selectionViewModel.clearSelection()
-                                backStack.clear()
-                                backStack.add(Profiles)
-                            }, onProfileClick = {
-                                if (backStack.lastOrNull() == home) backStack.add(ManageProfile(profile.id))
-                            })
+                            DestinationHome(
+                                profile = profile,
+                                onProfileClick = {
+                                    if (backStack.lastOrNull() == home) backStack.add(ManageProfile(profile.id))
+                                },
+                                onFinish = {
+                                    if (backStack.lastOrNull() == home) {
+                                        selectionViewModel.clearSelection()
+                                        backStack.removeLastOrNull()
+                                    }
+                                },
+                                renderCharacter = false,
+                                drawBackground = false,
+                            )
                         }
                     }
-                    entry<ManageProfile> { route ->
+                    entry<ManageProfile>(metadata = instantTransitionMetadata) { route ->
                         profiles.firstOrNull { it.id == route.profileId }?.let { profile ->
                             ProfileManagementScreen(
                                 profile = profile,
@@ -278,6 +313,21 @@ fun OnboardingNavigation(
                     }
                 },
         )
+        val home = currentRoute as? Home
+        val homeRelationship = profiles.firstOrNull { it.id == home?.profileId }?.relationship
+        if (resourcesReady) {
+            // Prepare the adult model first because its outfit uses an additional sheen shader.
+            for (relationship in characterRelationships.sortedBy { it != ProfileRelationship.PARTNER }) {
+                key(relationship) {
+                    RetainedHomeCharacter(
+                        relationship = relationship,
+                        visible = relationship == homeRelationship,
+                        active = relationship == homeRelationship,
+                        prepare = onProfileList,
+                    )
+                }
+            }
+        }
         form.error?.let { message ->
             AlertDialog(
                 onDismissRequest = viewModel::dismissMessage,

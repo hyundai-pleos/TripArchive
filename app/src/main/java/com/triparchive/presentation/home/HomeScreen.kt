@@ -6,19 +6,30 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.BoxWithConstraintsScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.paint
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -30,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.triparchive.R
 import com.triparchive.core.designsystem.TripArchiveTheme
 import com.triparchive.data.profile.Profile
@@ -39,12 +51,22 @@ import com.triparchive.data.profile.ProfileRelationship
 fun HomeScreen(
     profile: Profile,
     onProfileClick: () -> Unit = {},
+    renderCharacter: Boolean = true,
+    modifier: Modifier = Modifier,
+    background: Painter? = painterResource(R.drawable.home_street_background),
 ) {
     BoxWithConstraints(
-        Modifier.fillMaxSize().background(Color.White).safeDrawingPadding(),
+        modifier
+            .fillMaxSize()
+            .then(if (background == null) Modifier else Modifier.homeBackground(background))
+            .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout)),
         contentAlignment = Alignment.TopCenter,
     ) {
         val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
+        if (renderCharacter) {
+            HomeCharacter(profile.relationship, scale)
+        }
+
         Row(
             modifier =
                 Modifier
@@ -98,6 +120,50 @@ fun HomeScreen(
             }
         }
     }
+}
+
+internal fun Modifier.homeBackground(painter: Painter): Modifier =
+    background(Brush.verticalGradient(listOf(Color(0xFFC9FFFF), Color.White)))
+        .paint(painter, sizeToIntrinsics = false, contentScale = ContentScale.Crop)
+
+@Composable
+internal fun RetainedHomeCharacter(
+    relationship: ProfileRelationship,
+    visible: Boolean,
+    active: Boolean,
+    prepare: Boolean,
+) {
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            .zIndex(-1f)
+            .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout)),
+    ) {
+        val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
+        val visibility = Modifier.graphicsLayer { alpha = if (visible) 1f else 0f }
+        HomeCharacter(relationship, scale, visibility, active, prepare)
+    }
+}
+
+@Composable
+private fun BoxWithConstraintsScope.HomeCharacter(
+    relationship: ProfileRelationship,
+    scale: Float,
+    modifier: Modifier = Modifier,
+    active: Boolean = true,
+    prepare: Boolean = false,
+) {
+    ProfileCharacter(
+        relationship = relationship,
+        modifier =
+            Modifier
+                .align(Alignment.Center)
+                .then(modifier)
+                .width((640 * scale).dp)
+                .height((760 * scale).dp),
+        active = active,
+        prepare = prepare,
+    )
 }
 
 @Preview(widthDp = 840, heightDp = 1184, showBackground = true)

@@ -7,11 +7,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -39,6 +44,7 @@ import androidx.compose.ui.window.DialogWindowProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import com.triparchive.R
 import com.triparchive.data.navigation.DestinationState
 import com.triparchive.data.navigation.PleosDestinationSource
 import com.triparchive.data.profile.Profile
@@ -58,6 +64,9 @@ fun DestinationHome(
     onProfileClick: () -> Unit,
     onFinish: () -> Unit,
     source: Flow<DestinationState>? = null,
+    modifier: Modifier = Modifier,
+    renderCharacter: Boolean = true,
+    drawBackground: Boolean = true,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -96,17 +105,22 @@ fun DestinationHome(
         }
     }
     BoxWithConstraints(
-        Modifier
+        modifier
             .fillMaxSize()
             .testTag("home-surface")
-            .background(Color.White)
+            .background(if (drawBackground) Color.White else Color.Transparent)
             .drawWithContent {
                 drawContent()
                 if (arrival != null || confirm) drawRect(Color.Black.copy(alpha = 0.2f))
-            }.safeDrawingPadding(),
+            }.windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout)),
     ) {
         val s = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
-        HomeScreen(profile, onProfileClick)
+        HomeScreen(
+            profile = profile,
+            onProfileClick = onProfileClick,
+            renderCharacter = renderCharacter,
+            background = if (drawBackground) painterResource(R.drawable.home_street_background) else null,
+        )
         HomeDestinationSheet(
             nickname = profile.nickname,
             destination = arrival ?: destination.name?.takeIf { destination.routing && it.isNotBlank() },
