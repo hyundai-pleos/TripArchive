@@ -20,12 +20,14 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.rememberLifecycleOwner
 import com.google.android.filament.Engine
-import com.triparchive.data.profile.ProfileRelationship
+import com.triparchive.data.character.CharacterLook
 import io.github.sceneview.RenderQuality
 import io.github.sceneview.SceneView
 import io.github.sceneview.SurfaceType
 import io.github.sceneview.loaders.ModelLoader
 import io.github.sceneview.math.Position
+import io.github.sceneview.math.Scale
+import io.github.sceneview.model.model
 import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberMainLightNode
@@ -35,20 +37,19 @@ import io.github.sceneview.rememberView
 
 @Composable
 internal fun ProfileCharacter(
-    relationship: ProfileRelationship,
+    look: CharacterLook,
     modifier: Modifier = Modifier,
     active: Boolean = true,
     prepare: Boolean = false,
 ) {
     if (LocalInspectionMode.current) return
 
-    val assetPath = relationship.characterAssetPath()
     val sharedLoader = LocalCharacterModelLoader.current
     val engine = sharedLoader?.engine ?: rememberCharacterEngine()
     val modelLoader = sharedLoader ?: rememberModelLoader(engine)
     val renderView = rememberView(engine)
-    var prepared by remember(assetPath) { mutableStateOf(false) }
-    var modelAttached by remember(assetPath) { mutableStateOf(false) }
+    var prepared by remember(look.id) { mutableStateOf(false) }
+    var modelAttached by remember(look.id) { mutableStateOf(false) }
     val renderLifecycle =
         rememberLifecycleOwner(
             maxLifecycle =
@@ -81,15 +82,33 @@ internal fun ProfileCharacter(
             if (modelAttached) prepared = true
         },
     ) {
-        key(assetPath) {
-            val model = rememberModelInstance(modelLoader, assetPath)
-            if (model != null) {
+        key(look.id) {
+            val outfit = rememberModelInstance(modelLoader, look.outfitAssetPath)
+            val accessory = rememberModelInstance(modelLoader, look.accessoryAssetPath)
+            if (outfit != null && accessory != null) {
+                val bounds = outfit.model.boundingBox
+                val halfExtent = bounds.halfExtent
+                val maxExtent = maxOf(halfExtent[0], halfExtent[1], halfExtent[2]) * 2f
+                val fittedScale = if (maxExtent > 0f) 1f / maxExtent else 1f
+                val center = bounds.center
+                val fittedPosition =
+                    Position(
+                        x = -center[0] * fittedScale,
+                        y = -center[1] * fittedScale,
+                        z = -center[2] * fittedScale,
+                    )
                 ModelNode(
-                    modelInstance = model,
+                    modelInstance = outfit,
                     animationName = "Idle",
                     animationLoop = true,
                     scaleToUnits = 1f,
                     centerOrigin = Position(0f, 0f, 0f),
+                )
+                ModelNode(
+                    modelInstance = accessory,
+                    autoAnimate = false,
+                    position = fittedPosition,
+                    scale = Scale(fittedScale),
                 )
                 SideEffect { modelAttached = true }
             }
@@ -158,10 +177,3 @@ private fun rememberCharacterEngine(): Engine {
         },
     )
 }
-
-private fun ProfileRelationship.characterAssetPath(): String =
-    when (this) {
-        ProfileRelationship.CHILD -> "characters/child_wardrobe.glb"
-        ProfileRelationship.PARTNER -> "characters/adult_wardrobe.glb"
-        ProfileRelationship.PARENT -> "characters/parent_wardrobe.glb"
-    }

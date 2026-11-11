@@ -18,9 +18,13 @@ import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.SavedStateHandle
 import androidx.test.platform.app.InstrumentationRegistry
 import com.triparchive.core.designsystem.TripArchiveTheme
+import com.triparchive.data.character.CharacterLookCatalog
 import com.triparchive.data.profile.Profile
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.data.profile.ProfileRepository
+import com.triparchive.data.trip.TripSession
+import com.triparchive.data.trip.TripSessionRepository
+import com.triparchive.data.trip.TripSessionStatus
 import com.triparchive.navigation.OnboardingNavigation
 import com.triparchive.presentation.management.ProfileManagementViewModel
 import com.triparchive.presentation.onboarding.ProfileViewModel
@@ -29,6 +33,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -45,7 +50,8 @@ class OnboardingTest {
         compose.setContent {
             key(session.intValue) {
                 val form = remember { ProfileViewModel(repository, SavedStateHandle()) }
-                val selection = remember { ProfileSelectionViewModel(repository, SavedStateHandle()) }
+                val selection =
+                    remember { ProfileSelectionViewModel(repository, FakeTripSessions(), SavedStateHandle()) }
                 val management = remember { ProfileManagementViewModel(repository) }
                 TripArchiveTheme {
                     OnboardingNavigation(
@@ -82,7 +88,7 @@ class OnboardingTest {
         lateinit var selection: ProfileSelectionViewModel
         compose.setContent {
             val form = remember { ProfileViewModel(repository, SavedStateHandle()) }
-            selection = remember { ProfileSelectionViewModel(repository, SavedStateHandle()) }
+            selection = remember { ProfileSelectionViewModel(repository, FakeTripSessions(), SavedStateHandle()) }
             val management = remember { ProfileManagementViewModel(repository) }
             TripArchiveTheme {
                 OnboardingNavigation(viewModel = form, selectionViewModel = selection, managementViewModel = management)
@@ -120,7 +126,7 @@ class OnboardingTest {
         val repository = FakeProfiles(emptyList()).apply { fail = true }
         compose.setContent {
             val form = remember { ProfileViewModel(repository, SavedStateHandle()) }
-            val selection = remember { ProfileSelectionViewModel(repository, SavedStateHandle()) }
+            val selection = remember { ProfileSelectionViewModel(repository, FakeTripSessions(), SavedStateHandle()) }
             val management = remember { ProfileManagementViewModel(repository) }
             TripArchiveTheme {
                 OnboardingNavigation(viewModel = form, selectionViewModel = selection, managementViewModel = management)
@@ -243,7 +249,7 @@ class OnboardingTest {
     ) {
         compose.setContent {
             val form = remember { ProfileViewModel(repository, SavedStateHandle()) }
-            val selection = remember { ProfileSelectionViewModel(repository, SavedStateHandle()) }
+            val selection = remember { ProfileSelectionViewModel(repository, FakeTripSessions(), SavedStateHandle()) }
             val management = remember { ProfileManagementViewModel(repository) }
             TripArchiveTheme {
                 OnboardingNavigation(viewModel = form, selectionViewModel = selection, managementViewModel = management)
@@ -308,5 +314,24 @@ class OnboardingTest {
                 if (fail) error("Read failed")
                 profiles.collect { emit(it) }
             }
+    }
+
+    private class FakeTripSessions : TripSessionRepository {
+        override suspend fun openOrResume(profile: Profile) =
+            TripSession(
+                profileId = profile.id,
+                sessionId = "session-${profile.id}",
+                lookId = CharacterLookCatalog.looksFor(profile.relationship).first().id,
+                relationship = profile.relationship.name,
+                status = TripSessionStatus.ACTIVE,
+                updatedAtMillis = 0L,
+            )
+
+        override suspend fun finish(
+            profileId: Long,
+            sessionId: String,
+        ): TripSession? = null
+
+        override fun observe(profileId: Long) = flowOf<TripSession?>(null)
     }
 }

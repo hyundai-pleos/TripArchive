@@ -67,6 +67,8 @@ fun DestinationHome(
     modifier: Modifier = Modifier,
     renderCharacter: Boolean = true,
     drawBackground: Boolean = true,
+    tripSessionId: String? = null,
+    onCompleteTrip: suspend (String) -> Boolean = { true },
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -74,8 +76,19 @@ fun DestinationHome(
     var acknowledged by remember(profile.id) { mutableStateOf<String?>(null) }
     var confirm by remember(profile.id) { mutableStateOf(false) }
     var finishing by remember(profile.id) { mutableStateOf(false) }
+    var pendingFinishSessionId by remember(profile.id) { mutableStateOf<String?>(null) }
+    var finishError by remember(profile.id) { mutableStateOf(false) }
     LaunchedEffect(profile.id, finishing) {
-        if (finishing) onFinish()
+        if (finishing) {
+            val completed = pendingFinishSessionId?.let { onCompleteTrip(it) } ?: true
+            if (completed) {
+                onFinish()
+            } else {
+                finishing = false
+                confirm = true
+                finishError = true
+            }
+        }
     }
     LaunchedEffect(profile.id, lifecycle, source, finishing) {
         if (finishing) return@LaunchedEffect
@@ -166,10 +179,15 @@ fun DestinationHome(
                 ) {
                     Text("정말 여행을 마칠까요?", color = Ink, fontSize = (42 * s).sp, fontWeight = FontWeight.Bold)
                     Text("여행을 마치면 프로필 선택 화면으로 돌아가요", color = Gray, fontSize = (28 * s).sp, textAlign = TextAlign.Center)
+                    if (finishError) {
+                        Text("여행 정보를 저장하지 못했어요. 다시 시도해 주세요.", color = Pink, fontSize = (24 * s).sp)
+                    }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy((30 * s).dp)) {
                         ActionButton("마치기", Pink, s, true, {
                             if (!finishing) {
+                                pendingFinishSessionId = tripSessionId
                                 finishing = true
+                                finishError = false
                                 confirm = false
                                 demoArrival = null
                                 destination = DestinationState()
