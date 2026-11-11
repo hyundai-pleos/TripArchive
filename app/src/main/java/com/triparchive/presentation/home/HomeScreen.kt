@@ -18,7 +18,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.paint
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -41,7 +44,14 @@ fun HomeScreen(
     onProfileClick: () -> Unit = {},
 ) {
     BoxWithConstraints(
-        Modifier.fillMaxSize().background(Color.White).safeDrawingPadding(),
+        Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(Color(0xFFC9FFFF), Color.White)))
+            .paint(
+                painter = painterResource(R.drawable.home_street_background),
+                sizeToIntrinsics = false,
+                contentScale = ContentScale.Crop,
+            ).safeDrawingPadding(),
         contentAlignment = Alignment.TopCenter,
     ) {
         val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
