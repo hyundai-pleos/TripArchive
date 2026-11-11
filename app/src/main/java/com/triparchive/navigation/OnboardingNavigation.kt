@@ -22,6 +22,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.triparchive.data.profile.MAX_PROFILES
 import com.triparchive.data.profile.ProfileRelationship
+import com.triparchive.presentation.home.CharacterRenderResources
 import com.triparchive.presentation.home.HomeScreen
 import com.triparchive.presentation.management.ManagementEvent
 import com.triparchive.presentation.management.ProfileEditScreen
@@ -153,7 +154,11 @@ fun OnboardingNavigation(
             backStack.add(Nickname)
         }
     }
-    Box(modifier) {
+    CharacterRenderResources(
+        relationshipsToPrepare =
+            if (backStack.lastOrNull() == Profiles) profiles.map { it.relationship }.toSet() else emptySet(),
+        modifier = modifier,
+    ) {
         NavDisplay(
             backStack = backStack,
             onBack = {
