@@ -1,5 +1,8 @@
 package com.triparchive.navigation
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -192,7 +195,12 @@ fun OnboardingNavigation(
                             addProfile,
                         )
                     }
-                    entry<Home> { home ->
+                    entry<Home>(
+                        metadata =
+                            NavDisplay.transitionSpec { EnterTransition.None togetherWith ExitTransition.None } +
+                                NavDisplay.popTransitionSpec { EnterTransition.None togetherWith ExitTransition.None } +
+                                NavDisplay.predictivePopTransitionSpec { EnterTransition.None togetherWith ExitTransition.None },
+                    ) { home ->
                         profiles.firstOrNull { it.id == home.profileId }?.let { profile ->
                             HomeScreen(profile = profile, onProfileClick = {
                                 if (backStack.lastOrNull() == home) backStack.add(ManageProfile(profile.id))
