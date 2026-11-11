@@ -3,10 +3,13 @@ package com.triparchive
 import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
@@ -51,9 +54,9 @@ class DestinationHomeTest {
             assertEquals(0, finished)
             state.value = state.value.arrive("안목해변")
         }
-        compose.onNodeWithText("안목해변에\n도착했어요!").assertIsDisplayed()
+        compose.onNodeWithText("안목해변에 도착했어요!").assertIsDisplayed()
         compose.onNodeWithText("도착 확인하고 계속하기").performClick()
-        compose.onNodeWithText("안목해변에\n도착했어요!").assertDoesNotExist()
+        compose.onNodeWithText("안목해변에 도착했어요!").assertDoesNotExist()
         compose.runOnIdle { state.value = DestinationState("시장", routing = true) }
         compose.onNodeWithText("시장").assertIsDisplayed()
         compose.runOnIdle { state.value = state.value.routeChanged(false) }
@@ -92,32 +95,119 @@ class DestinationHomeTest {
         compose.onNodeWithText("도착 재현").assertIsNotEnabled()
         compose.runOnIdle { state.value = DestinationState("시장", routing = true) }
         compose.onNodeWithText("도착 재현").performClick()
-        compose.onNodeWithText("시장에\n도착했어요!").assertIsDisplayed()
+        compose.onNodeWithText("시장에 도착했어요!").assertIsDisplayed()
         // A real SDK refresh/change must not interrupt the simulated arrival screen.
         compose.runOnIdle { state.value = DestinationState("해변", routing = true) }
-        compose.onNodeWithText("시장에\n도착했어요!").assertIsDisplayed()
-        compose.onNodeWithText("재현 초기화").performClick()
+        compose.onNodeWithText("시장에 도착했어요!").assertIsDisplayed()
+        compose.onNodeWithText("도착 확인하고 계속하기").performClick()
         compose.onNodeWithText("해변").assertIsDisplayed()
         compose.onNodeWithText("도착 재현").performClick()
-        compose.onNodeWithText("해변에\n도착했어요!").assertIsDisplayed()
+        compose.onNodeWithText("해변에 도착했어요!").assertIsDisplayed()
         compose.onNodeWithText("도착 확인하고 계속하기").performClick()
         compose.onNodeWithText("해변").assertIsDisplayed()
         compose.onNodeWithText("도착 재현").performClick()
         compose.onNodeWithText("여기서 여행 마치기").performClick()
         compose.onNodeWithText("취소").performClick()
-        compose.onNodeWithText("해변에\n도착했어요!").assertIsDisplayed()
+        compose.onNodeWithText("해변에 도착했어요!").assertIsDisplayed()
         compose.onNodeWithText("여기서 여행 마치기").performClick()
         compose.onNodeWithText("마치기").performClick()
         compose.runOnIdle {
             assertEquals(1, finished)
             assertEquals(DestinationState("해변", routing = true), state.value)
         }
+        compose.onNode(isDialog()).assertDoesNotExist()
+        compose.runOnIdle { state.value = state.value.arrive("해변") }
+        compose.onNode(isDialog()).assertDoesNotExist()
+        compose.runOnIdle { assertEquals(1, finished) }
     }
 
-    private fun captureIfRequested(name: String) {
+    @Test
+    fun arrivalDialogCountsDownAndPausesDuringFinishConfirmation() {
+        val state = MutableStateFlow(DestinationState("안목해변", routing = true))
+        compose.setContent {
+            TripArchiveTheme {
+                DestinationHome(Profile(1, "준", ProfileRelationship.PARENT), {}, {}, state)
+            }
+        }
+        compose.runOnIdle { state.value = state.value.arrive("안목해변") }
+        compose.onNodeWithText("안목해변에 도착했어요!").assertIsDisplayed()
+        compose.onNodeWithText("5").assertIsDisplayed()
+        captureIfRequested("arrival-dialog", dialog = true)
+        compose.mainClock.advanceTimeBy(2000)
+        compose.onNodeWithText("3").assertIsDisplayed()
+        compose.onNodeWithText("여기서 여행 마치기").performClick()
+        compose.mainClock.advanceTimeBy(6000)
+        compose.onNodeWithText("정말 여행을 마칠까요?").assertIsDisplayed()
+        compose.onNodeWithText("취소").performClick()
+        compose.onNodeWithText("안목해변에 도착했어요!").assertIsDisplayed()
+        compose.onNodeWithText("3").assertIsDisplayed()
+        compose.mainClock.advanceTimeBy(3100)
+        compose.onNodeWithText("안목해변에 도착했어요!").assertDoesNotExist()
+        compose.onNodeWithText("준님과 여행하고 있어요.").assertIsDisplayed()
+        compose.mainClock.advanceTimeBy(6000)
+        compose.onNodeWithText("안목해변에 도착했어요!").assertDoesNotExist()
+    }
+
+    @Test
+    fun homeIsDimmedWhileArrivalOrFinishDialogIsVisible() {
+        val state = MutableStateFlow(DestinationState("안목해변", routing = true))
+        compose.setContent {
+            TripArchiveTheme {
+                DestinationHome(Profile(1, "준", ProfileRelationship.PARENT), {}, {}, state)
+            }
+        }
+
+        fun assertBackground(expected: Float) {
+            val pixels = compose.onNodeWithTag("home-surface").captureToImage().toPixelMap()
+            val color = pixels[pixels.width / 2, pixels.height / 10]
+            assertEquals(expected, color.red, 0.02f)
+            assertEquals(expected, color.green, 0.02f)
+            assertEquals(expected, color.blue, 0.02f)
+        }
+        assertBackground(1f)
+        compose.runOnIdle { state.value = state.value.arrive("안목해변") }
+        compose.onNodeWithText("안목해변에 도착했어요!").assertIsDisplayed()
+        assertBackground(0.8f)
+        compose.onNodeWithText("여기서 여행 마치기").performClick()
+        assertBackground(0.8f)
+        compose.onNodeWithText("취소").performClick()
+        assertBackground(0.8f)
+        compose.onNodeWithText("도착 확인하고 계속하기").performClick()
+        assertBackground(1f)
+    }
+
+    @Test
+    fun finishingFromArrivalClearsDialogsAndIgnoresLateSdkEvents() {
+        val state = MutableStateFlow(DestinationState())
+        var finished = 0
+        compose.setContent {
+            TripArchiveTheme {
+                // Keep the outgoing screen composed, as it is during a navigation transition.
+                DestinationHome(Profile(1, "준", ProfileRelationship.PARENT), {}, { finished++ }, state)
+            }
+        }
+        compose.runOnIdle { state.value = state.value.arrive("안목해변") }
+        compose.onNodeWithText("여기서 여행 마치기").performClick()
+        compose.onNodeWithText("마치기").performClick()
+        compose.onNode(isDialog()).assertDoesNotExist()
+        compose.runOnIdle {
+            assertEquals(1, finished)
+            state.value = DestinationState("시장", arrived = "시장", routing = true)
+        }
+        compose.mainClock.advanceTimeBy(6000)
+        compose.onNode(isDialog()).assertDoesNotExist()
+        val pixels = compose.onNodeWithTag("home-surface").captureToImage().toPixelMap()
+        assertEquals(1f, pixels[pixels.width / 2, pixels.height / 10].red, 0.02f)
+        compose.runOnIdle { assertEquals(1, finished) }
+    }
+
+    private fun captureIfRequested(
+        name: String,
+        dialog: Boolean = false,
+    ) {
         if (InstrumentationRegistry.getArguments().getString("captureScreenshots") != "true") return
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        val bitmap = (if (dialog) compose.onNode(isDialog()) else compose.onRoot()).captureToImage().asAndroidBitmap()
         File(context.cacheDir, "$name.png").outputStream().use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
