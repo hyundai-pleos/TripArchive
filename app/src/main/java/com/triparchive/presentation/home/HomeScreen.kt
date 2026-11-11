@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.BoxWithConstraintsScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -37,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.triparchive.R
 import com.triparchive.core.designsystem.TripArchiveTheme
 import com.triparchive.data.profile.Profile
@@ -128,9 +128,14 @@ internal fun RetainedHomeCharacter(
     active: Boolean,
     prepare: Boolean,
 ) {
-    BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            .zIndex(if (visible) 1f else -1f)
+            .safeDrawingPadding(),
+    ) {
         val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
-        val visibility = if (visible) Modifier else Modifier.offset(y = maxHeight).alpha(0f)
+        val visibility = if (visible) Modifier else Modifier.alpha(0f)
         HomeCharacter(relationship, scale, visibility, active, prepare)
     }
 }
