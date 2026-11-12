@@ -13,11 +13,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -25,7 +30,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.structuralEqualityPolicy
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,9 +41,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.triparchive.R
 import com.triparchive.core.designsystem.TripArchiveTheme
 import com.triparchive.data.repository.map.BoundaryRepositoryImpl
 import com.triparchive.domain.map.ObserveMapVisitIntensities
@@ -116,7 +126,7 @@ internal fun VisitMapScreen(
                         scale = scale,
                         modifier =
                             Modifier
-                                .align(Alignment.BottomStart)
+                                .align(Alignment.BottomEnd)
                                 .padding((28 * scale).dp),
                     )
                 }
@@ -186,23 +196,49 @@ private fun VisitMapHeader(
 
 @Composable
 private fun MapAttribution(scale: Float, modifier: Modifier = Modifier) {
+    var showAttribution by rememberSaveable { mutableStateOf(false) }
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
+        shape = CircleShape,
         color = Color.White.copy(alpha = 0.92f),
     ) {
-        Column(Modifier.padding(horizontal = 13.dp, vertical = 9.dp)) {
-            Text(
-                text = "대한민국 행정구역 경계",
-                style = MaterialTheme.typography.labelMedium,
-                color = VisitMapPalette.text,
-            )
-            Text(
-                text = "통계청 SGIS · 가공: vuski/admdongkor · CC BY 4.0",
-                style = MaterialTheme.typography.labelSmall,
-                color = VisitMapPalette.secondaryText,
+        IconButton(
+            onClick = { showAttribution = true },
+            modifier = Modifier.size((64 * scale).dp.coerceAtLeast(48.dp)),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.map_info),
+                contentDescription = "지도 출처 및 라이선스",
+                modifier = Modifier.size((32 * scale).dp),
+                tint = VisitMapPalette.text,
             )
         }
+    }
+    if (showAttribution) {
+        AlertDialog(
+            onDismissRequest = { showAttribution = false },
+            title = { Text("지도 출처 및 라이선스") },
+            text = {
+                SelectionContainer {
+                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                        Text(
+                            "본 데이터는 통계청 통계지리정보서비스(SGIS)에서 공공누리 제1유형으로 개방한 " +
+                                "행정구역 경계를 가공한 것이며(가공: vuski/admdongkor), CC BY 4.0으로 배포됩니다.",
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "원자료: 통계청 SGIS\nhttps://sgis.kostat.go.kr\n\n" +
+                                "가공: vuski/admdongkor\nhttps://github.com/vuski/admdongkor\n\n" +
+                                "공공누리 제1유형\nhttps://www.kogl.or.kr/info/licenseType1.do\n\n" +
+                                "CC BY 4.0\nhttps://creativecommons.org/licenses/by/4.0/",
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAttribution = false }) { Text("확인") }
+            },
+        )
     }
 }
 
