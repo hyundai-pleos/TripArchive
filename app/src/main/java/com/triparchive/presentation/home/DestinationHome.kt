@@ -67,6 +67,7 @@ fun DestinationHome(
     modifier: Modifier = Modifier,
     renderCharacter: Boolean = true,
     drawBackground: Boolean = true,
+    onMapClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -118,6 +119,7 @@ fun DestinationHome(
         HomeScreen(
             profile = profile,
             onProfileClick = onProfileClick,
+            onMapClick = onMapClick,
             renderCharacter = renderCharacter,
             background = if (drawBackground) painterResource(R.drawable.home_street_background) else null,
         )
