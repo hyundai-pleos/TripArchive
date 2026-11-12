@@ -89,7 +89,7 @@ class MapViewportTest {
                 offsetX = 20f,
                 offsetY = -10f,
                 viewportWidth = 200f,
-                viewportHeight = 100f
+                viewportHeight = 100f,
             )
 
         val zoomed = viewport.reduce(VisitMapAction.ZoomIn)
@@ -110,9 +110,8 @@ class MapViewportTest {
                 offsetX = 200f,
                 offsetY = -100f,
                 viewportWidth = 200f,
-                viewportHeight = 100f
-            )
-                .reduce(VisitMapAction.ViewportResized(80f, 40f))
+                viewportHeight = 100f,
+            ).reduce(VisitMapAction.ViewportResized(80f, 40f))
 
         assertEquals(80f, viewport.offsetX, 0.001f)
         assertEquals(-40f, viewport.offsetY, 0.001f)

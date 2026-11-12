@@ -14,9 +14,9 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -66,9 +66,11 @@ internal fun VisitMapScreen(
         modifier = modifier.fillMaxSize(),
         color = VisitMapPalette.unvisited,
     ) {
-        BoxWithConstraints(Modifier
-            .fillMaxSize()
-            .safeDrawingPadding()) {
+        BoxWithConstraints(
+            Modifier
+                .fillMaxSize()
+                .safeDrawingPadding(),
+        ) {
             val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
             Column(
                 modifier =
@@ -195,7 +197,10 @@ private fun VisitMapHeader(
 }
 
 @Composable
-private fun MapAttribution(scale: Float, modifier: Modifier = Modifier) {
+private fun MapAttribution(
+    scale: Float,
+    modifier: Modifier = Modifier,
+) {
     var showAttribution by rememberSaveable { mutableStateOf(false) }
     Surface(
         modifier = modifier,

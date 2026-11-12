@@ -55,14 +55,21 @@ internal fun VisitMapControls(
             shadowElevation = (2 * scale).dp,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                ZoomButton(iconRes = R.drawable.map_zoom_in, onClick = { onAction(VisitMapAction.ZoomIn) }, label = "확대", scale = scale)
+                ZoomButton(
+                    iconRes = R.drawable.map_zoom_in,
+                    onClick = { onAction(VisitMapAction.ZoomIn) },
+                    label = "확대",
+                    scale = scale,
+                )
                 Box(
                     Modifier
                         .width((34 * scale).dp)
                         .height((1 * scale).dp)
                         .background(Color(0xFFE5EBEE)),
                 )
-                ZoomButton(iconRes = R.drawable.map_zoom_out, onClick = { onAction(VisitMapAction.ZoomOut) }, label = "축소", scale = scale)
+                ZoomButton(iconRes = R.drawable.map_zoom_out, onClick = {
+                    onAction(VisitMapAction.ZoomOut)
+                }, label = "축소", scale = scale)
             }
         }
         TextButton(
