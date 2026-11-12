@@ -22,9 +22,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.triparchive.R
 import com.triparchive.data.profile.MAX_PROFILES
@@ -37,6 +39,7 @@ import com.triparchive.presentation.management.ManagementEvent
 import com.triparchive.presentation.management.ProfileEditScreen
 import com.triparchive.presentation.management.ProfileManagementScreen
 import com.triparchive.presentation.management.ProfileManagementViewModel
+import com.triparchive.presentation.map.VisitMapRoute
 import com.triparchive.presentation.onboarding.OnboardingScreen
 import com.triparchive.presentation.onboarding.ProfileScreen
 import com.triparchive.presentation.onboarding.ProfileViewModel
@@ -56,6 +59,11 @@ private data object Profiles : NavKey
 
 @Serializable
 private data class Home(
+    val profileId: Long,
+) : NavKey
+
+@Serializable
+private data class VisitMap(
     val profileId: Long,
 ) : NavKey
 
@@ -124,6 +132,7 @@ fun OnboardingNavigation(
             } else if (
                 when (val current = backStack.lastOrNull()) {
                     is Home -> profiles.none { it.id == current.profileId }
+                    is VisitMap -> profiles.none { it.id == current.profileId }
                     is ManageProfile -> profiles.none { it.id == current.profileId }
                     is EditProfile -> profiles.none { it.id == current.profileId }
                     else -> false
@@ -184,6 +193,11 @@ fun OnboardingNavigation(
         }
         NavDisplay(
             backStack = backStack,
+            entryDecorators =
+                listOf(
+                    rememberSaveableStateHolderNavEntryDecorator(),
+                    rememberViewModelStoreNavEntryDecorator(),
+                ),
             onBack = {
                 if (!form.saving && !management.busy) {
                     if (management.showDeleteDialog) {
@@ -222,6 +236,9 @@ fun OnboardingNavigation(
                                 onProfileClick = {
                                     if (backStack.lastOrNull() == home) backStack.add(ManageProfile(profile.id))
                                 },
+                                onMapClick = {
+                                    if (backStack.lastOrNull() == home) backStack.add(VisitMap(profile.id))
+                                },
                                 onFinish = {
                                     if (backStack.lastOrNull() == home) {
                                         selectionViewModel.clearSelection()
@@ -232,6 +249,13 @@ fun OnboardingNavigation(
                                 drawBackground = false,
                             )
                         }
+                    }
+                    entry<VisitMap> { route ->
+                        VisitMapRoute(
+                            onBack = {
+                                if (backStack.lastOrNull() == route) backStack.removeLastOrNull()
+                            },
+                        )
                     }
                     entry<ManageProfile>(metadata = instantTransitionMetadata) { route ->
                         profiles.firstOrNull { it.id == route.profileId }?.let { profile ->

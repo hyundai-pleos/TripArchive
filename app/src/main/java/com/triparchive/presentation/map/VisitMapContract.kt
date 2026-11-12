@@ -1,4 +1,4 @@
-package com.triparchive.feature.map
+package com.triparchive.presentation.map
 
 import com.triparchive.domain.map.AdministrativeBoundaries
 import com.triparchive.domain.map.VisitIntensity

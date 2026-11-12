@@ -1,4 +1,4 @@
-package com.triparchive.feature.map
+package com.triparchive.presentation.map
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTransformGestures

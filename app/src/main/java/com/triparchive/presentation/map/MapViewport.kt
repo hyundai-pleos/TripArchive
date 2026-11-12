@@ -1,4 +1,4 @@
-package com.triparchive.feature.map
+package com.triparchive.presentation.map
 
 private const val MIN_ZOOM = 1f
 private const val DEFAULT_ZOOM = 1f
