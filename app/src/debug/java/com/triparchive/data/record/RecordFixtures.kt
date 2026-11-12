@@ -12,7 +12,7 @@ object RecordFixtures {
                 title = "강릉·속초 여행",
                 startedAt = 1793491200000,
                 endedAt = 1793664000000,
-                distanceMeters = 341000,
+                distanceMeters = null,
                 stops = listOf("서울시청", "강릉 안목해변", "속초 중앙시장"),
             ),
         )

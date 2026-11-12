@@ -38,6 +38,26 @@ class RecordScreensTest {
     }
 
     @Test
+    fun listHidesStoredAndUnavailableDistances() {
+        val records =
+            listOf(
+                TripRecord(1, 1, "강릉 여행", 0, 1, 123_000),
+                TripRecord(2, 1, "부산 여행", 0, 1, null),
+            )
+        var selectedId: Long? = null
+        compose.setContent {
+            TripArchiveTheme {
+                RecordListScreen(RecordListState.Ready(records), {}, { selectedId = it }, {})
+            }
+        }
+        compose.onNodeWithText("강릉 여행").assertIsDisplayed().performClick()
+        compose.onNodeWithText("부산 여행").assertIsDisplayed()
+        compose.onNodeWithText("123km").assertDoesNotExist()
+        compose.onNodeWithText("거리 정보 없음").assertDoesNotExist()
+        compose.runOnIdle { assertEquals(1L, selectedId) }
+    }
+
+    @Test
     fun detailDisplaysStopsInPositionOrder() {
         val record = TripRecord(1, 1, "여행 이름", 0, 1, null)
         val stops = listOf(TripStop(2, 1, 1, "두 번째 장소"), TripStop(1, 1, 0, "첫 번째 장소"))

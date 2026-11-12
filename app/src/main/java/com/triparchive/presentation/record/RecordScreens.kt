@@ -191,19 +191,15 @@ private fun RecordCard(
             .padding(horizontal = (20 * scale).dp, vertical = (24 * scale).dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                record.title,
-                Modifier.weight(1f),
-                color = Ink,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = (34 * scale).sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.width((16 * scale).dp))
-            Text(formatDistance(record.distanceMeters), color = Ink, fontSize = (26 * scale).sp)
-        }
+        Text(
+            record.title,
+            Modifier.fillMaxWidth(),
+            color = Ink,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = (34 * scale).sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
         Spacer(Modifier.height((10 * scale).dp))
         Text(
             formatDates(record.startedAt, record.endedAt),
@@ -301,8 +297,6 @@ private fun formatDates(
     val formatter = SimpleDateFormat("yyyy.MM.dd", Locale.KOREA)
     return "${formatter.format(Date(start))} ~ ${formatter.format(Date(end))}"
 }
-
-private fun formatDistance(meters: Long?): String = if (meters == null) "거리 정보 없음" else "${meters / 1000}km"
 
 @Preview(widthDp = 420, heightDp = 592, showBackground = true)
 @Composable
