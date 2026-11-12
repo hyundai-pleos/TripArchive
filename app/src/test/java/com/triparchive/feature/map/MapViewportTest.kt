@@ -2,7 +2,6 @@ package com.triparchive.feature.map
 
 import com.triparchive.presentation.map.MapViewport
 import com.triparchive.presentation.map.VisitMapAction
-
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -85,7 +84,13 @@ class MapViewportTest {
     @Test
     fun `button zoom preserves the center after panning`() {
         val viewport =
-            MapViewport(zoom = 2f, offsetX = 20f, offsetY = -10f, viewportWidth = 200f, viewportHeight = 100f)
+            MapViewport(
+                zoom = 2f,
+                offsetX = 20f,
+                offsetY = -10f,
+                viewportWidth = 200f,
+                viewportHeight = 100f
+            )
 
         val zoomed = viewport.reduce(VisitMapAction.ZoomIn)
 
@@ -100,7 +105,13 @@ class MapViewportTest {
     @Test
     fun `resizing clamps the position to the new viewport`() {
         val viewport =
-            MapViewport(zoom = 3f, offsetX = 200f, offsetY = -100f, viewportWidth = 200f, viewportHeight = 100f)
+            MapViewport(
+                zoom = 3f,
+                offsetX = 200f,
+                offsetY = -100f,
+                viewportWidth = 200f,
+                viewportHeight = 100f
+            )
                 .reduce(VisitMapAction.ViewportResized(80f, 40f))
 
         assertEquals(80f, viewport.offsetX, 0.001f)
