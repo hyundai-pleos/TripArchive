@@ -1,4 +1,4 @@
-package com.triparchive.feature.map
+package com.triparchive.presentation.map
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement

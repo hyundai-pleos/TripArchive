@@ -7,6 +7,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.triparchive.core.designsystem.TripArchiveTheme
 import com.triparchive.data.repository.map.BoundaryRepositoryImpl
 import com.triparchive.domain.map.ObserveMapVisitIntensities
+import com.triparchive.presentation.map.MapViewport
+import com.triparchive.presentation.map.VisitMapContent
+import com.triparchive.presentation.map.VisitMapScreen
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking

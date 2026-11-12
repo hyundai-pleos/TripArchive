@@ -1,4 +1,4 @@
-package com.triparchive.feature.map
+package com.triparchive.presentation.map
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver

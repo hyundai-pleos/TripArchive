@@ -1,4 +1,4 @@
-package com.triparchive.feature.map
+package com.triparchive.presentation.map
 
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable

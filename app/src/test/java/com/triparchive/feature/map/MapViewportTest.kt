@@ -1,5 +1,8 @@
 package com.triparchive.feature.map
 
+import com.triparchive.presentation.map.MapViewport
+import com.triparchive.presentation.map.VisitMapAction
+
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
