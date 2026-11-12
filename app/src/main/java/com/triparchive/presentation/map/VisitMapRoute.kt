@@ -12,6 +12,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 internal fun VisitMapRoute(
     onBack: () -> Unit,
+    onRecordsClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: VisitMapViewModel = hiltViewModel()
@@ -25,6 +26,7 @@ internal fun VisitMapRoute(
         viewport = viewport,
         onAction = viewModel::onAction,
         onBack = onBack,
+        onRecordsClick = onRecordsClick,
         modifier = modifier,
     )
 }

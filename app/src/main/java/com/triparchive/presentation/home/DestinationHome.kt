@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +58,7 @@ import com.triparchive.presentation.management.LightGray
 import com.triparchive.presentation.management.Pink
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 
 @Composable
 fun DestinationHome(
@@ -68,6 +70,8 @@ fun DestinationHome(
     renderCharacter: Boolean = true,
     drawBackground: Boolean = true,
     onMapClick: () -> Unit = {},
+    onArrival: (String) -> Unit = {},
+    saveTrip: suspend (String?) -> Boolean = { true },
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -75,6 +79,9 @@ fun DestinationHome(
     var acknowledged by remember(profile.id) { mutableStateOf<String?>(null) }
     var confirm by remember(profile.id) { mutableStateOf(false) }
     var finishing by remember(profile.id) { mutableStateOf(false) }
+    var saving by remember(profile.id) { mutableStateOf(false) }
+    var saveError by remember(profile.id) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     LaunchedEffect(profile.id, finishing) {
         if (finishing) onFinish()
     }
@@ -90,8 +97,11 @@ fun DestinationHome(
     var demoArrival by remember(profile.id) { mutableStateOf<String?>(null) }
     val arrival = if (finishing) null else demoArrival ?: destination.arrived?.takeUnless { it == acknowledged }
     val acknowledgeArrival = {
-        acknowledged = arrival
-        demoArrival = null
+        if (!confirm && !finishing) {
+            arrival?.let(onArrival)
+            acknowledged = arrival
+            demoArrival = null
+        }
     }
     var secondsRemaining by remember(profile.id, arrival) { mutableIntStateOf(5) }
     LaunchedEffect(arrival, confirm, lifecycle) {
@@ -150,7 +160,7 @@ fun DestinationHome(
         )
         if (confirm) {
             Dialog(
-                onDismissRequest = { confirm = false },
+                onDismissRequest = { if (!saving) confirm = false },
                 properties = DialogProperties(usePlatformDefaultWidth = false),
             ) {
                 val window = (LocalView.current.parent as? DialogWindowProvider)?.window
@@ -168,16 +178,32 @@ fun DestinationHome(
                 ) {
                     Text("정말 여행을 마칠까요?", color = Ink, fontSize = (42 * s).sp, fontWeight = FontWeight.Bold)
                     Text("여행을 마치면 프로필 선택 화면으로 돌아가요", color = Gray, fontSize = (28 * s).sp, textAlign = TextAlign.Center)
+                    if (saveError) {
+                        Text("여행 기록을 저장하지 못했어요. 다시 시도해 주세요.", color = Ink, fontSize = (24 * s).sp)
+                    }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy((30 * s).dp)) {
-                        ActionButton("마치기", Pink, s, true, {
-                            if (!finishing) {
-                                finishing = true
-                                confirm = false
-                                demoArrival = null
-                                destination = DestinationState()
+                        ActionButton(if (saving) "저장 중" else "마치기", Pink, s, !saving, {
+                            if (!finishing && !saving) {
+                                saving = true
+                                saveError = false
+                                val pendingArrival = arrival
+                                scope.launch {
+                                    if (saveTrip(pendingArrival)) {
+                                        finishing = true
+                                        confirm = false
+                                        demoArrival = null
+                                        destination = DestinationState()
+                                    } else {
+                                        saveError = true
+                                    }
+                                    saving = false
+                                }
                             }
                         }, Modifier.weight(1f))
-                        ActionButton("취소", LightGray, s, true, { confirm = false }, Modifier.weight(1f))
+                        ActionButton("취소", LightGray, s, !saving, {
+                            confirm = false
+                            saveError = false
+                        }, Modifier.weight(1f))
                     }
                 }
             }

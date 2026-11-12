@@ -2,10 +2,14 @@ package com.triparchive.di
 
 import android.content.Context
 import androidx.room.Room
+import com.triparchive.data.local.MIGRATION_1_2
 import com.triparchive.data.local.TripArchiveDatabase
 import com.triparchive.data.profile.ProfileDao
 import com.triparchive.data.profile.ProfileRepository
 import com.triparchive.data.profile.RoomProfileRepository
+import com.triparchive.data.record.RecordDao
+import com.triparchive.data.record.RecordRepository
+import com.triparchive.data.record.RoomRecordRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -20,7 +24,11 @@ object StorageModule {
     @Singleton
     fun database(
         @ApplicationContext context: Context,
-    ): TripArchiveDatabase = Room.databaseBuilder(context, TripArchiveDatabase::class.java, "triparchive.db").build()
+    ): TripArchiveDatabase =
+        Room
+            .databaseBuilder(context, TripArchiveDatabase::class.java, "triparchive.db")
+            .addMigrations(MIGRATION_1_2)
+            .build()
 
     @Provides
     fun profileDao(database: TripArchiveDatabase): ProfileDao = database.profileDao()
@@ -28,4 +36,11 @@ object StorageModule {
     @Provides
     @Singleton
     fun profileRepository(dao: ProfileDao): ProfileRepository = RoomProfileRepository(dao)
+
+    @Provides
+    fun recordDao(database: TripArchiveDatabase): RecordDao = database.recordDao()
+
+    @Provides
+    @Singleton
+    fun recordRepository(dao: RecordDao): RecordRepository = RoomRecordRepository(dao)
 }
