@@ -31,8 +31,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.triparchive.core.designsystem.TripArchiveTheme
+import com.triparchive.data.repository.map.BoundaryRepositoryImpl
+import com.triparchive.domain.map.ObserveMapVisitIntensities
+import com.triparchive.presentation.management.BackControl
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
 
 @Composable
 internal fun VisitMapScreen(
@@ -46,71 +56,81 @@ internal fun VisitMapScreen(
         modifier = modifier.fillMaxSize(),
         color = VisitMapPalette.unvisited,
     ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .safeDrawingPadding()
-                    .padding(horizontal = 32.dp, vertical = 20.dp),
-        ) {
-            VisitMapHeader(viewport = viewport)
-            Spacer(Modifier.height(16.dp))
-            BoxWithConstraints(
+        BoxWithConstraints(Modifier
+            .fillMaxSize()
+            .safeDrawingPadding()) {
+            val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
+            Column(
                 modifier =
                     Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(28.dp)),
+                        .fillMaxSize()
+                        .padding(horizontal = (56 * scale).dp, vertical = (40 * scale).dp),
             ) {
-                when (content) {
-                    is VisitMapContent.Ready -> {
-                        val density = LocalDensity.current
-                        val width = with(density) { maxWidth.toPx() }
-                        val height = with(density) { maxHeight.toPx() }
-                        val boundaries = content.boundaries
-                        val paths =
-                            remember(boundaries, width, height) {
-                                BoundaryPaths.create(boundaries, width, height)
-                            }
-
-                        BoundaryCanvas(
-                            paths = paths,
-                            visitIntensities = content.visitIntensities,
-                            viewport = viewport,
-                            onAction = onAction,
-                        )
-                        VisitMapControls(
-                            viewport = viewport,
-                            onAction = onAction,
-                            modifier =
-                                Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(24.dp),
-                        )
-                    }
-
-                    VisitMapContent.Loading -> {
-                        LoadingMap()
-                    }
-
-                    is VisitMapContent.Error -> {
-                        MapError(content, onRetry = { onAction(VisitMapAction.Retry) }, onBack = onBack)
-                    }
-                }
-
-                MapAttribution(
+                VisitMapHeader(viewport = viewport, onBack = onBack, scale = scale)
+                Spacer(Modifier.height((24 * scale).dp))
+                BoxWithConstraints(
                     modifier =
                         Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(20.dp),
-                )
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape((40 * scale).dp)),
+                ) {
+                    when (content) {
+                        is VisitMapContent.Ready -> {
+                            val density = LocalDensity.current
+                            val width = with(density) { maxWidth.toPx() }
+                            val height = with(density) { maxHeight.toPx() }
+                            val boundaries = content.boundaries
+                            val paths =
+                                remember(boundaries, width, height) {
+                                    BoundaryPaths.create(boundaries, width, height)
+                                }
+
+                            BoundaryCanvas(
+                                paths = paths,
+                                visitIntensities = content.visitIntensities,
+                                viewport = viewport,
+                                onAction = onAction,
+                            )
+                            VisitMapControls(
+                                viewport = viewport,
+                                onAction = onAction,
+                                scale = scale,
+                                modifier =
+                                    Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding((32 * scale).dp),
+                            )
+                        }
+
+                        VisitMapContent.Loading -> {
+                            LoadingMap(scale = scale)
+                        }
+
+                        is VisitMapContent.Error -> {
+                            MapError(content, onRetry = { onAction(VisitMapAction.Retry) }, onBack = onBack)
+                        }
+                    }
+
+                    MapAttribution(
+                        scale = scale,
+                        modifier =
+                            Modifier
+                                .align(Alignment.BottomStart)
+                                .padding((28 * scale).dp),
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun VisitMapHeader(viewport: () -> MapViewport) {
+private fun VisitMapHeader(
+    viewport: () -> MapViewport,
+    onBack: () -> Unit,
+    scale: Float,
+) {
     val showsDistricts by remember(viewport) {
         derivedStateOf(structuralEqualityPolicy()) { viewport().showsDistricts }
     }
@@ -118,46 +138,46 @@ private fun VisitMapHeader(viewport: () -> MapViewport) {
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        BackControl(s = scale, enabled = true, onBack = onBack)
+        Spacer(Modifier.width((16 * scale).dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "TRIP ARCHIVE",
-                style = MaterialTheme.typography.labelMedium,
-                color = VisitMapPalette.secondaryText,
-            )
-            Spacer(Modifier.height(3.dp))
+            Spacer(Modifier.height((3 * scale).dp))
             Text(
                 text = "다녀온 곳을 확인해요",
                 style = MaterialTheme.typography.headlineSmall,
+                fontSize = (36 * scale).sp,
                 color = VisitMapPalette.text,
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height((4 * scale).dp))
             Text(
                 text = "지금까지 여행한 지역이 색으로 채워져요",
                 style = MaterialTheme.typography.bodySmall,
+                fontSize = (20 * scale).sp,
                 color = VisitMapPalette.secondaryText,
             )
         }
         Surface(
-            shape = RoundedCornerShape(100.dp),
+            shape = RoundedCornerShape((100 * scale).dp),
             color = Color.White,
             contentColor = VisitMapPalette.text,
-            shadowElevation = 1.dp,
+            shadowElevation = (1 * scale).dp,
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+                modifier = Modifier.padding(horizontal = (18 * scale).dp, vertical = (12 * scale).dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
                     modifier =
                         Modifier
-                            .size(8.dp)
+                            .size((8 * scale).dp)
                             .clip(CircleShape)
                             .background(VisitMapPalette.accent),
                 )
-                Spacer(Modifier.width(9.dp))
+                Spacer(Modifier.width((9 * scale).dp))
                 Text(
                     text = if (showsDistricts) "시 · 군 · 구 경계" else "시 · 도 경계",
                     style = MaterialTheme.typography.labelLarge,
+                    fontSize = (22 * scale).sp,
                 )
             }
         }
@@ -165,7 +185,7 @@ private fun VisitMapHeader(viewport: () -> MapViewport) {
 }
 
 @Composable
-private fun MapAttribution(modifier: Modifier = Modifier) {
+private fun MapAttribution(scale: Float, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
@@ -187,19 +207,19 @@ private fun MapAttribution(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun LoadingMap() {
+private fun LoadingMap(scale: Float) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Surface(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape((20 * scale).dp),
             color = Color.White.copy(alpha = 0.95f),
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                modifier = Modifier.padding(horizontal = (20 * scale).dp, vertical = (16 * scale).dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
-                Spacer(Modifier.width(12.dp))
-                Text("대한민국 지도를 준비하고 있어요", color = VisitMapPalette.text)
+                CircularProgressIndicator(modifier = Modifier.size((22 * scale).dp), strokeWidth = (2 * scale).dp)
+                Spacer(Modifier.width((12 * scale).dp))
+                Text("대한민국 지도를 준비하고 있어요", color = VisitMapPalette.text, fontSize = (24 * scale).sp)
             }
         }
     }
@@ -228,4 +248,73 @@ private fun MapError(
         },
         dismissButton = { TextButton(onClick = onBack) { Text("뒤로 가기") } },
     )
+}
+
+@Preview(name = "시·도 방문 지도 · 세로", widthDp = 840, heightDp = 1184)
+@Preview(name = "시·도 방문 지도 · 가로", widthDp = 1280, heightDp = 720)
+@Composable
+private fun ProvinceVisitsPreview() {
+    VisitMapPreview(viewport = MapViewport())
+}
+
+@Preview(name = "시·군·구 방문 지도 · 세로", widthDp = 840, heightDp = 1184)
+@Preview(name = "시·군·구 방문 지도 · 가로", widthDp = 1280, heightDp = 720)
+@Composable
+private fun DistrictVisitsPreview() {
+    VisitMapPreview(viewport = MapViewport(zoom = 3.5f))
+}
+
+@Composable
+private fun VisitMapPreview(viewport: MapViewport) {
+    val context = LocalContext.current.applicationContext
+    val content =
+        remember(context) {
+            runBlocking {
+                val boundaries = BoundaryRepositoryImpl(context).getBoundaries()
+                val visitIntensities = ObserveMapVisitIntensities { flowOf(PreviewVisitCounts) }(boundaries).first()
+                VisitMapContent.Ready(boundaries, visitIntensities)
+            }
+        }
+    TripArchiveTheme(darkTheme = false) {
+        VisitMapScreen(content = content, viewport = { viewport }, onAction = {}, onBack = {})
+    }
+}
+
+private val PreviewVisitCounts =
+    mapOf(
+        "11110" to 1,
+        "26500" to 1,
+        "41111" to 2,
+        "43111" to 1,
+        "43130" to 2,
+        "43150" to 3,
+        "44131" to 4,
+        "50110" to 2,
+        "51150" to 5,
+        "52111" to 3,
+    )
+
+@Preview(name = "지도 로딩", widthDp = 1280, heightDp = 720)
+@Composable
+private fun LoadingPreview() {
+    PreviewState(VisitMapContent.Loading)
+}
+
+@Preview(name = "지도 오류 - 자동 재시도 대기", widthDp = 1280, heightDp = 720)
+@Composable
+private fun ErrorPreview() {
+    PreviewState(VisitMapContent.Error(secondsUntilRetry = 5))
+}
+
+@Preview(name = "지도 오류 - 재시도 중", widthDp = 1280, heightDp = 720)
+@Composable
+private fun RetryingPreview() {
+    PreviewState(VisitMapContent.Error(secondsUntilRetry = 0, retrying = true))
+}
+
+@Composable
+private fun PreviewState(content: VisitMapContent) {
+    TripArchiveTheme(darkTheme = false) {
+        VisitMapScreen(content = content, viewport = { MapViewport() }, onAction = {}, onBack = {})
+    }
 }
