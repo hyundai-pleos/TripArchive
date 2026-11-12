@@ -34,6 +34,7 @@ import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.presentation.home.CharacterRenderResources
 import com.triparchive.presentation.home.DestinationHome
 import com.triparchive.presentation.home.RetainedHomeCharacter
+import com.triparchive.presentation.home.TripSessionViewModel
 import com.triparchive.presentation.home.homeBackground
 import com.triparchive.presentation.management.ManagementEvent
 import com.triparchive.presentation.management.ProfileEditScreen
@@ -46,6 +47,8 @@ import com.triparchive.presentation.onboarding.ProfileViewModel
 import com.triparchive.presentation.profile.ProfileListState
 import com.triparchive.presentation.profile.ProfileSelectionScreen
 import com.triparchive.presentation.profile.ProfileSelectionViewModel
+import com.triparchive.presentation.record.RecordDetailRoute
+import com.triparchive.presentation.record.RecordListRoute
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -65,6 +68,17 @@ private data class Home(
 @Serializable
 private data class VisitMap(
     val profileId: Long,
+) : NavKey
+
+@Serializable
+private data class Records(
+    val profileId: Long,
+) : NavKey
+
+@Serializable
+private data class RecordDetail(
+    val profileId: Long,
+    val recordId: Long,
 ) : NavKey
 
 @Serializable
@@ -133,6 +147,8 @@ fun OnboardingNavigation(
                 when (val current = backStack.lastOrNull()) {
                     is Home -> profiles.none { it.id == current.profileId }
                     is VisitMap -> profiles.none { it.id == current.profileId }
+                    is Records -> profiles.none { it.id == current.profileId }
+                    is RecordDetail -> profiles.none { it.id == current.profileId }
                     is ManageProfile -> profiles.none { it.id == current.profileId }
                     is EditProfile -> profiles.none { it.id == current.profileId }
                     else -> false
@@ -231,6 +247,7 @@ fun OnboardingNavigation(
                     }
                     entry<Home>(metadata = instantTransitionMetadata) { home ->
                         profiles.firstOrNull { it.id == home.profileId }?.let { profile ->
+                            val tripSession: TripSessionViewModel = hiltViewModel()
                             DestinationHome(
                                 profile = profile,
                                 onProfileClick = {
@@ -239,6 +256,8 @@ fun OnboardingNavigation(
                                 onMapClick = {
                                     if (backStack.lastOrNull() == home) backStack.add(VisitMap(profile.id))
                                 },
+                                onArrival = tripSession::recordArrival,
+                                saveTrip = { pendingArrival -> tripSession.save(profile.id, pendingArrival) },
                                 onFinish = {
                                     if (backStack.lastOrNull() == home) {
                                         selectionViewModel.clearSelection()
@@ -252,6 +271,31 @@ fun OnboardingNavigation(
                     }
                     entry<VisitMap> { route ->
                         VisitMapRoute(
+                            onBack = {
+                                if (backStack.lastOrNull() == route) backStack.removeLastOrNull()
+                            },
+                            onRecordsClick = {
+                                if (backStack.lastOrNull() == route) backStack.add(Records(route.profileId))
+                            },
+                        )
+                    }
+                    entry<Records> { route ->
+                        RecordListRoute(
+                            profileId = route.profileId,
+                            onBack = {
+                                if (backStack.lastOrNull() == route) backStack.removeLastOrNull()
+                            },
+                            onRecordClick = { recordId ->
+                                if (backStack.lastOrNull() == route) {
+                                    backStack.add(RecordDetail(route.profileId, recordId))
+                                }
+                            },
+                        )
+                    }
+                    entry<RecordDetail> { route ->
+                        RecordDetailRoute(
+                            profileId = route.profileId,
+                            recordId = route.recordId,
                             onBack = {
                                 if (backStack.lastOrNull() == route) backStack.removeLastOrNull()
                             },

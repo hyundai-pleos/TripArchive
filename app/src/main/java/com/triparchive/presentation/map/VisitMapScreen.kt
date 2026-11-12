@@ -1,6 +1,7 @@
 package com.triparchive.presentation.map
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -42,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -60,6 +62,7 @@ internal fun VisitMapScreen(
     viewport: () -> MapViewport,
     onAction: (VisitMapAction) -> Unit,
     onBack: () -> Unit,
+    onRecordsClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -130,6 +133,29 @@ internal fun VisitMapScreen(
                             Modifier
                                 .align(Alignment.BottomEnd)
                                 .padding((28 * scale).dp),
+                    )
+                }
+                Spacer(Modifier.height((24 * scale).dp))
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height((96 * scale).dp.coerceAtLeast(48.dp))
+                            .clip(RoundedCornerShape((16 * scale).dp))
+                            .background(VisitMapPalette.accent)
+                            .clickable(
+                                interactionSource = null,
+                                indication = null,
+                                role = Role.Button,
+                                onClick = onRecordsClick,
+                            ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "기록 보기",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontSize = (32 * scale).sp,
+                        color = Color.White,
                     )
                 }
             }
