@@ -7,14 +7,17 @@ data class CharacterLook(
     val id: String,
     val outfitId: String,
     val accessoryId: String,
-    val outfitAssetPath: String,
-    val accessoryAssetPath: String,
+    val outfitAssetPath: String?,
+    val accessoryAssetPath: String?,
+    val baseAssetPath: String? = null,
+    val compositeAssetPath: String? = null,
 )
 
 object CharacterLookCatalog {
     private data class Outfit(
         val id: String,
         val assetName: String,
+        val assetDirectory: String = "outfits",
     )
 
     private data class Accessory(
@@ -25,6 +28,8 @@ object CharacterLookCatalog {
         val folder: String,
         val outfits: List<Outfit>,
         val accessories: List<Accessory>,
+        val baseAssetPath: String? = null,
+        val compositeAssetPath: String? = null,
     )
 
     private val characters =
@@ -43,11 +48,13 @@ object CharacterLookCatalog {
             ProfileRelationship.PARTNER to
                 CharacterAssets(
                     folder = "adult",
+                    baseAssetPath = "characters/adult_wardrobe.glb",
+                    compositeAssetPath = "characters/catalog/adult/adult_composite.glb",
                     outfits =
                         listOf(
-                            Outfit("couple_1", "couple_1"),
-                            Outfit("couple_2", "couple_2"),
-                            Outfit("couple_4", "couple_4"),
+                            Outfit("couple_1", "heart_hoodie"),
+                            Outfit("couple_2", "cream_knit"),
+                            Outfit("couple_4", "lavender_jacket"),
                         ),
                     accessories =
                         listOf(
@@ -74,12 +81,17 @@ object CharacterLookCatalog {
             assets.outfits.flatMap { outfit ->
                 assets.accessories.map { accessory ->
                     val basePath = "characters/catalog/${assets.folder}"
+                    val usesComposite = assets.compositeAssetPath != null
                     CharacterLook(
                         id = "${relationship.name.lowercase()}_${outfit.id}_${accessory.id}",
                         outfitId = outfit.id,
                         accessoryId = accessory.id,
-                        outfitAssetPath = "$basePath/outfits/${outfit.assetName}.glb",
-                        accessoryAssetPath = "$basePath/accessories/${accessory.id}.glb",
+                        outfitAssetPath =
+                            if (usesComposite) null else "$basePath/${outfit.assetDirectory}/${outfit.assetName}.glb",
+                        accessoryAssetPath =
+                            if (usesComposite) null else "$basePath/accessories/${accessory.id}.glb",
+                        baseAssetPath = assets.baseAssetPath,
+                        compositeAssetPath = assets.compositeAssetPath,
                     )
                 }
             }

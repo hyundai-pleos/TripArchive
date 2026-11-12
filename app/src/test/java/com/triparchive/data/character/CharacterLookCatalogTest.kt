@@ -18,10 +18,12 @@ class CharacterLookCatalogTest {
         val adultLook = CharacterLookCatalog.looksFor(ProfileRelationship.PARTNER).first()
         val parentLook = CharacterLookCatalog.looksFor(ProfileRelationship.PARENT).first()
         assertEquals("characters/catalog/child/outfits/family_1.glb", childLook.outfitAssetPath)
-        assertEquals("characters/catalog/adult/outfits/couple_1.glb", adultLook.outfitAssetPath)
+        assertEquals(null, adultLook.outfitAssetPath)
+        assertEquals("characters/adult_wardrobe.glb", adultLook.baseAssetPath)
+        assertEquals("characters/catalog/adult/adult_composite.glb", adultLook.compositeAssetPath)
         assertEquals("characters/catalog/parent/outfits/parent_1.glb", parentLook.outfitAssetPath)
         assertEquals("characters/catalog/child/accessories/bear_headband.glb", childLook.accessoryAssetPath)
-        assertEquals("characters/catalog/adult/accessories/heart_sunglasses.glb", adultLook.accessoryAssetPath)
+        assertEquals(null, adultLook.accessoryAssetPath)
         assertEquals("characters/catalog/parent/accessories/beret.glb", parentLook.accessoryAssetPath)
     }
 
