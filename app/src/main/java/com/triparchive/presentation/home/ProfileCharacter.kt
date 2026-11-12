@@ -26,7 +26,6 @@ import io.github.sceneview.SceneView
 import io.github.sceneview.SurfaceType
 import io.github.sceneview.loaders.ModelLoader
 import io.github.sceneview.math.Position
-import io.github.sceneview.math.Scale
 import io.github.sceneview.model.model
 import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberEngine
@@ -86,30 +85,20 @@ internal fun ProfileCharacter(
             val outfit = rememberModelInstance(modelLoader, look.outfitAssetPath)
             val accessory = rememberModelInstance(modelLoader, look.accessoryAssetPath)
             if (outfit != null && accessory != null) {
-                val bounds = outfit.model.boundingBox
-                val halfExtent = bounds.halfExtent
-                val maxExtent = maxOf(halfExtent[0], halfExtent[1], halfExtent[2]) * 2f
-                val fittedScale = if (maxExtent > 0f) 1f / maxExtent else 1f
-                val center = bounds.center
-                val fittedPosition =
-                    Position(
-                        x = -center[0] * fittedScale,
-                        y = -center[1] * fittedScale,
-                        z = -center[2] * fittedScale,
-                    )
                 ModelNode(
                     modelInstance = outfit,
                     animationName = "Idle",
                     animationLoop = true,
                     scaleToUnits = 1f,
                     centerOrigin = Position(0f, 0f, 0f),
-                )
-                ModelNode(
-                    modelInstance = accessory,
-                    autoAnimate = false,
-                    position = fittedPosition,
-                    scale = Scale(fittedScale),
-                )
+                ) {
+                    // Accessory GLBs use the character's authored coordinate space. Keep them
+                    // below the outfit root so centering, scale, and Idle motion affect both.
+                    ModelNode(
+                        modelInstance = accessory,
+                        autoAnimate = false,
+                    )
+                }
                 SideEffect { modelAttached = true }
             }
         }
