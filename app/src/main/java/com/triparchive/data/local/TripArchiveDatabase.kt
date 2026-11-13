@@ -10,7 +10,7 @@ import com.triparchive.data.record.RecordDao
 import com.triparchive.data.record.TripRecord
 import com.triparchive.data.record.TripStop
 
-@Database(entities = [Profile::class, TripRecord::class, TripStop::class], version = 2, exportSchema = true)
+@Database(entities = [Profile::class, TripRecord::class, TripStop::class], version = 3, exportSchema = true)
 abstract class TripArchiveDatabase : RoomDatabase() {
     abstract fun profileDao(): ProfileDao
 
@@ -30,5 +30,12 @@ val MIGRATION_1_2 =
             db.execSQL(
                 "CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_stops_tripId_position` ON `trip_stops` (`tripId`, `position`)",
             )
+        }
+    }
+
+val MIGRATION_2_3 =
+    object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `trip_stops` ADD COLUMN `category` TEXT")
         }
     }

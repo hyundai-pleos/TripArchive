@@ -44,6 +44,7 @@ data class TripStop(
     val tripId: Long,
     val position: Int,
     val placeName: String,
+    val category: String? = null,
 )
 
 data class NewTripRecord(
