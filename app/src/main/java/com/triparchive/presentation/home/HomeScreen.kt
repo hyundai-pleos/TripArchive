@@ -42,6 +42,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.triparchive.R
 import com.triparchive.core.designsystem.TripArchiveTheme
+import com.triparchive.data.character.CharacterLook
+import com.triparchive.data.character.CharacterLookCatalog
 import com.triparchive.data.profile.Profile
 import com.triparchive.data.profile.ProfileRelationship
 
@@ -50,6 +52,7 @@ fun HomeScreen(
     profile: Profile,
     onProfileClick: () -> Unit = {},
     renderCharacter: Boolean = true,
+    characterLook: CharacterLook? = null,
     modifier: Modifier = Modifier,
     background: Painter? = painterResource(R.drawable.home_street_background),
     onMapClick: () -> Unit = {},
@@ -63,7 +66,7 @@ fun HomeScreen(
     ) {
         val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
         if (renderCharacter) {
-            HomeCharacter(profile.relationship, scale)
+            HomeCharacter(profile.relationship, scale, look = characterLook)
         }
 
         Row(
@@ -127,6 +130,7 @@ internal fun Modifier.homeBackground(painter: Painter): Modifier =
 @Composable
 internal fun RetainedHomeCharacter(
     relationship: ProfileRelationship,
+    look: CharacterLook,
     visible: Boolean,
     active: Boolean,
     prepare: Boolean,
@@ -139,7 +143,7 @@ internal fun RetainedHomeCharacter(
     ) {
         val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
         val visibility = Modifier.graphicsLayer { alpha = if (visible) 1f else 0f }
-        HomeCharacter(relationship, scale, visibility, active, prepare)
+        HomeCharacter(relationship, scale, visibility, active, prepare, look)
     }
 }
 
@@ -150,9 +154,10 @@ private fun BoxWithConstraintsScope.HomeCharacter(
     modifier: Modifier = Modifier,
     active: Boolean = true,
     prepare: Boolean = false,
+    look: CharacterLook? = null,
 ) {
     ProfileCharacter(
-        relationship = relationship,
+        look = look ?: CharacterLookCatalog.looksFor(relationship).first(),
         modifier =
             Modifier
                 .align(Alignment.Center)

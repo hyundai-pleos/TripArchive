@@ -1,10 +1,12 @@
 package com.triparchive.presentation.home
 
 import android.content.pm.PackageManager
+import android.opengl.Matrix
 import android.os.Build
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -20,35 +22,37 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.rememberLifecycleOwner
 import com.google.android.filament.Engine
-import com.triparchive.data.profile.ProfileRelationship
+import com.triparchive.data.character.CharacterLook
 import io.github.sceneview.RenderQuality
+import io.github.sceneview.SceneScope
 import io.github.sceneview.SceneView
 import io.github.sceneview.SurfaceType
 import io.github.sceneview.loaders.ModelLoader
 import io.github.sceneview.math.Position
+import io.github.sceneview.model.ModelInstance
 import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberMainLightNode
 import io.github.sceneview.rememberModelInstance
 import io.github.sceneview.rememberModelLoader
 import io.github.sceneview.rememberView
+import io.github.sceneview.node.ModelNode as RiggedModelNode
 
 @Composable
 internal fun ProfileCharacter(
-    relationship: ProfileRelationship,
+    look: CharacterLook,
     modifier: Modifier = Modifier,
     active: Boolean = true,
     prepare: Boolean = false,
 ) {
     if (LocalInspectionMode.current) return
 
-    val assetPath = relationship.characterAssetPath()
     val sharedLoader = LocalCharacterModelLoader.current
     val engine = sharedLoader?.engine ?: rememberCharacterEngine()
     val modelLoader = sharedLoader ?: rememberModelLoader(engine)
     val renderView = rememberView(engine)
-    var prepared by remember(assetPath) { mutableStateOf(false) }
-    var modelAttached by remember(assetPath) { mutableStateOf(false) }
+    var prepared by remember(look.id) { mutableStateOf(false) }
+    var modelAttached by remember(look.id) { mutableStateOf(false) }
     val renderLifecycle =
         rememberLifecycleOwner(
             maxLifecycle =
@@ -81,17 +85,47 @@ internal fun ProfileCharacter(
             if (modelAttached) prepared = true
         },
     ) {
-        key(assetPath) {
-            val model = rememberModelInstance(modelLoader, assetPath)
-            if (model != null) {
-                ModelNode(
-                    modelInstance = model,
-                    animationName = "Idle",
-                    animationLoop = true,
-                    scaleToUnits = 1f,
-                    centerOrigin = Position(0f, 0f, 0f),
-                )
-                SideEffect { modelAttached = true }
+        if (look.baseAssetPath != null && look.compositeAssetPath != null) {
+            AdultCompositeCharacter(
+                look = look,
+                baseAssetPath = look.baseAssetPath,
+                compositeAssetPath = look.compositeAssetPath,
+                modelLoader = modelLoader,
+                engine = engine,
+                onReady = { modelAttached = true },
+            )
+        } else {
+            val outfitAssetPath = look.outfitAssetPath
+            val accessoryAssetPath = look.accessoryAssetPath
+            if (outfitAssetPath != null && accessoryAssetPath != null) {
+                key(look.id) {
+                    val outfit = rememberModelInstance(modelLoader, outfitAssetPath)
+                    val accessory = rememberModelInstance(modelLoader, accessoryAssetPath)
+                    if (outfit != null && accessory != null) {
+                        val attachment = remember(outfit, accessory) { AccessoryRigBinding() }
+                        ModelNode(
+                            modelInstance = outfit,
+                            animationName = "Idle",
+                            animationLoop = true,
+                            scaleToUnits = 1f,
+                            centerOrigin = Position(0f, 0f, 0f),
+                            apply = { attachment.characterNode = this },
+                        ) {
+                            ModelNode(
+                                modelInstance = accessory,
+                                autoAnimate = false,
+                                apply = { attachment.accessoryNode = this },
+                            )
+                            DisposableEffect(engine, outfit, accessory, attachment) {
+                                attachAccessoryToHead(engine, attachment)
+                                onDispose {
+                                    attachment.accessoryNode?.parent = null
+                                }
+                            }
+                        }
+                        SideEffect { modelAttached = true }
+                    }
+                }
             }
         }
     }
@@ -102,6 +136,197 @@ internal fun ProfileCharacter(
                 enabled = false
             }
     }
+}
+
+private class AdultCompositeBinding {
+    var characterNode: RiggedModelNode? = null
+    var modelNode: RiggedModelNode? = null
+    var lastAppliedLookId: String? = null
+}
+
+@Composable
+private fun SceneScope.AdultCompositeCharacter(
+    look: CharacterLook,
+    baseAssetPath: String,
+    compositeAssetPath: String,
+    modelLoader: ModelLoader,
+    engine: Engine,
+    onReady: () -> Unit,
+) {
+    val base = rememberModelInstance(modelLoader, baseAssetPath)
+    val composite = rememberModelInstance(modelLoader, compositeAssetPath)
+    if (base != null && composite != null) {
+        val binding = remember(composite) { AdultCompositeBinding() }
+        ModelNode(
+            modelInstance = base,
+            animationName = "Idle",
+            animationLoop = true,
+            scaleToUnits = 1f,
+            centerOrigin = Position(0f, 0f, 0f),
+            apply = {
+                binding.characterNode = this
+                hideAllAdultBaseMeshes(engine, base)
+            },
+        ) {
+            ModelNode(
+                modelInstance = composite,
+                autoAnimate = false,
+                apply = {
+                    binding.modelNode = this
+                    applyAdultCompositeLook(engine, this, look)
+                    binding.lastAppliedLookId = look.id
+                },
+            )
+            DisposableEffect(engine, composite, binding) {
+                attachAdultAccessoriesToHead(engine, binding)
+                onDispose { }
+            }
+            DisposableEffect(engine, composite, look.id, binding) {
+                if (binding.lastAppliedLookId != look.id) {
+                    applyAdultCompositeLook(engine, binding.modelNode, look)
+                    binding.lastAppliedLookId = look.id
+                }
+                onDispose { }
+            }
+        }
+        SideEffect(onReady)
+    }
+}
+
+private fun attachAdultAccessoriesToHead(
+    engine: Engine,
+    binding: AdultCompositeBinding,
+) {
+    val character = binding.characterNode ?: return
+    val composite = binding.modelNode ?: return
+    val headEntity =
+        character.modelInstance.entities.firstOrNull {
+            character.model.getName(it) in setOf("BODY|head.001", "BODY|head", "head.001", "head")
+        }
+    val headNode = character.nodes.firstOrNull { it.entity == headEntity }
+    if (headEntity == null || headNode == null) return
+
+    val transformManager = engine.transformManager
+    val headInstance = transformManager.getInstance(headEntity)
+    if (headInstance == 0) return
+    val headWorld = transformManager.getWorldTransform(headInstance, FloatArray(16))
+    val inverseHeadWorld = FloatArray(16)
+    if (!Matrix.invertM(inverseHeadWorld, 0, headWorld, 0)) return
+
+    for (entity in composite.modelInstance.entities) {
+        val name = composite.model.getName(entity) ?: continue
+        if (!name.substringBefore('|').startsWith("ACC_")) continue
+        val accessoryNode = composite.nodes.firstOrNull { it.entity == entity } ?: continue
+        if (accessoryNode.parent == headNode) continue
+        val accessoryInstance = transformManager.getInstance(entity)
+        if (accessoryInstance == 0) continue
+        val accessoryWorld = transformManager.getWorldTransform(accessoryInstance, FloatArray(16))
+        val accessoryLocal = FloatArray(16)
+        Matrix.multiplyMM(accessoryLocal, 0, inverseHeadWorld, 0, accessoryWorld, 0)
+        accessoryNode.parent = headNode
+        transformManager.setTransform(accessoryInstance, accessoryLocal)
+    }
+}
+
+private fun applyAdultCompositeLook(
+    engine: Engine,
+    character: RiggedModelNode?,
+    look: CharacterLook,
+) {
+    if (character == null) return
+    val outfit =
+        when (look.outfitId) {
+            "couple_1" -> "heart_hoodie"
+            "couple_2" -> "cream_knit"
+            "couple_4" -> "lavender_jacket"
+            else -> return
+        }
+    val manager = engine.renderableManager
+    for (entity in character.modelInstance.entities) {
+        val instance = manager.getInstance(entity)
+        if (instance == 0) continue
+        val name = character.model.getName(entity)
+        val part = name?.substringBefore('|')
+        val localName = name?.substringAfter('|', "")
+        val visible =
+            when {
+                part == "BODY" -> localName?.let { it.startsWith("head") || it.startsWith("tuft_smooth_curl") } == true
+                part == "FACE_default" -> true
+                part == "OUTFIT_$outfit" -> true
+                part == "ACC_${look.accessoryId}" -> true
+                else -> false
+            }
+        manager.setLayerMask(instance, 0xff, if (visible) 1 else 0)
+    }
+}
+
+private class AccessoryRigBinding {
+    var characterNode: RiggedModelNode? = null
+    var accessoryNode: RiggedModelNode? = null
+}
+
+private fun hideAllAdultBaseMeshes(
+    engine: Engine,
+    character: ModelInstance?,
+) {
+    if (character == null) return
+    val manager = engine.renderableManager
+    for (entity in character.entities) {
+        val instance = manager.getInstance(entity)
+        if (instance == 0) continue
+        manager.setLayerMask(instance, 0xff, 0)
+    }
+}
+
+private fun attachAccessoryToHead(
+    engine: Engine,
+    binding: AccessoryRigBinding,
+) {
+    val character = binding.characterNode ?: return
+    val accessory = binding.accessoryNode ?: return
+    val headEntity =
+        character.modelInstance.entities.firstOrNull {
+            character.model.getName(it) in setOf("BODY|head.001", "BODY|head", "head.001", "head")
+        }
+    val headNode = character.nodes.firstOrNull { it.entity == headEntity }
+    if (headEntity == null || headNode == null) {
+        android.util.Log.e("ProfileCharacter", "No head node found for accessory attachment")
+        accessory.isVisible = false
+        return
+    }
+
+    // Preserve the accessory's authored character-space placement when moving it under the
+    // animated head node. Keep the outfit's existing character coordinate frame and model scale.
+    val coordinateEntity =
+        character.modelInstance.entities.firstOrNull {
+            character.model.getName(it) == "Child" || character.model.getName(it) == "root"
+        } ?: character.entity
+    val transformManager = engine.transformManager
+    val headInstance = transformManager.getInstance(headEntity)
+    val coordinateInstance = transformManager.getInstance(coordinateEntity)
+    val accessoryInstance = transformManager.getInstance(accessory.entity)
+    if (headInstance == 0 || coordinateInstance == 0 || accessoryInstance == 0) {
+        android.util.Log.e("ProfileCharacter", "Missing transform for accessory head attachment")
+        accessory.isVisible = false
+        return
+    }
+
+    val headWorld = transformManager.getWorldTransform(headInstance, FloatArray(16))
+    val characterWorld = transformManager.getWorldTransform(coordinateInstance, FloatArray(16))
+    val inverseHeadWorld = FloatArray(16)
+    if (!Matrix.invertM(inverseHeadWorld, 0, headWorld, 0)) {
+        android.util.Log.e("ProfileCharacter", "Could not invert animated head transform")
+        accessory.isVisible = false
+        return
+    }
+    val headLocalAccessoryTransform = FloatArray(16)
+    Matrix.multiplyMM(headLocalAccessoryTransform, 0, inverseHeadWorld, 0, characterWorld, 0)
+
+    // This updates both SceneView's Node graph and Filament's TransformManager hierarchy.
+    // A TransformManager-only reparent is reverted by SceneView's top-level node synchronization.
+    accessory.parent = headNode
+    transformManager.setTransform(accessoryInstance, headLocalAccessoryTransform)
+    accessory.isVisible = true
 }
 
 private val LocalCharacterModelLoader = staticCompositionLocalOf<ModelLoader?> { null }
@@ -158,10 +383,3 @@ private fun rememberCharacterEngine(): Engine {
         },
     )
 }
-
-private fun ProfileRelationship.characterAssetPath(): String =
-    when (this) {
-        ProfileRelationship.CHILD -> "characters/child_wardrobe.glb"
-        ProfileRelationship.PARTNER -> "characters/adult_wardrobe.glb"
-        ProfileRelationship.PARENT -> "characters/parent_wardrobe.glb"
-    }

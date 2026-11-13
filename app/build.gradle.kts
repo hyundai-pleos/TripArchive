@@ -32,6 +32,8 @@ android {
 
     testBuildType = providers.gradleProperty("testBuildType").getOrElse("debug")
 
+    sourceSets.getByName("androidTest").assets.srcDir(layout.projectDirectory.dir("schemas"))
+
     buildTypes {
         debug {
             buildConfigField("boolean", "ARRIVAL_DEMO", "false")
@@ -90,6 +92,7 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.room.testing)
 }
 
 ksp {
