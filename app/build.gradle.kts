@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
@@ -14,6 +16,16 @@ ktlint {
     }
 }
 
+val localSecrets =
+    Properties().apply {
+        rootProject
+            .file("local.properties")
+            .takeIf { it.exists() }
+            ?.inputStream()
+            ?.use { load(it) }
+    }
+val kakaoKey = (localSecrets.getProperty("KAKAO_REST_API_KEY") ?: "").replace("\\", "\\\\").replace("\"", "\\\"")
+
 android {
     namespace = "com.triparchive"
     compileSdk {
@@ -22,6 +34,7 @@ android {
 
     defaultConfig {
         applicationId = "com.triparchive"
+        buildConfigField("String", "KAKAO_REST_API_KEY", "\"$kakaoKey\"")
         minSdk = 28
         targetSdk = 36
         versionCode = 1
