@@ -33,8 +33,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.disabled
-import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,6 +55,7 @@ fun HomeScreen(
     characterLook: CharacterLook? = null,
     modifier: Modifier = Modifier,
     background: Painter? = painterResource(R.drawable.home_street_background),
+    onMapClick: () -> Unit = {},
 ) {
     BoxWithConstraints(
         modifier
@@ -112,10 +111,9 @@ fun HomeScreen(
                 Modifier
                     .size((72 * scale).dp)
                     .background(Color(0xFFFF66AF), CircleShape)
+                    .clickable(role = Role.Button, onClick = onMapClick)
                     .semantics {
-                        role = Role.Button
                         contentDescription = "지도"
-                        disabled()
                     },
                 contentAlignment = Alignment.Center,
             ) {

@@ -4,6 +4,7 @@ import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
 import androidx.test.platform.app.InstrumentationRegistry
 import com.triparchive.data.local.MIGRATION_1_2
+import com.triparchive.data.local.MIGRATION_2_3
 import com.triparchive.data.local.TripArchiveDatabase
 import com.triparchive.data.profile.Profile
 import com.triparchive.data.profile.ProfileRelationship
@@ -103,7 +104,7 @@ class TripSessionStorageTest {
             close()
         }
 
-        val migrated = helper.runMigrationsAndValidate(name, 2, true, MIGRATION_1_2)
+        val migrated = helper.runMigrationsAndValidate(name, 3, true, MIGRATION_1_2, MIGRATION_2_3)
         try {
             migrated.query("SELECT nickname, relationship FROM profiles WHERE id = 7").use { cursor ->
                 assertTrue(cursor.moveToFirst())
@@ -123,6 +124,6 @@ class TripSessionStorageTest {
     private fun openDatabase(name: String) =
         Room
             .databaseBuilder(context, TripArchiveDatabase::class.java, name)
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .build()
 }

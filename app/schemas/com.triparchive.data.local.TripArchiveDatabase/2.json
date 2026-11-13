@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 2,
-    "identityHash": "39e7e179d9b7fe7e2e72deb63d624d7e",
+    "identityHash": "b238696ce7f9545fdf5d73687b1d1e51",
     "entities": [
       {
         "tableName": "profiles",
@@ -35,9 +35,15 @@
         }
       },
       {
-        "tableName": "trip_sessions",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`profileId` INTEGER NOT NULL, `sessionId` TEXT NOT NULL, `lookId` TEXT NOT NULL, `relationship` TEXT NOT NULL, `status` TEXT NOT NULL, `updatedAtMillis` INTEGER NOT NULL, PRIMARY KEY(`profileId`), FOREIGN KEY(`profileId`) REFERENCES `profiles`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "tableName": "trip_records",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `profileId` INTEGER NOT NULL, `title` TEXT NOT NULL, `startedAt` INTEGER NOT NULL, `endedAt` INTEGER NOT NULL, `distanceMeters` INTEGER, FOREIGN KEY(`profileId`) REFERENCES `profiles`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
           {
             "fieldPath": "profileId",
             "columnName": "profileId",
@@ -45,42 +51,46 @@
             "notNull": true
           },
           {
-            "fieldPath": "sessionId",
-            "columnName": "sessionId",
+            "fieldPath": "title",
+            "columnName": "title",
             "affinity": "TEXT",
             "notNull": true
           },
           {
-            "fieldPath": "lookId",
-            "columnName": "lookId",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "relationship",
-            "columnName": "relationship",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "status",
-            "columnName": "status",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "updatedAtMillis",
-            "columnName": "updatedAtMillis",
+            "fieldPath": "startedAt",
+            "columnName": "startedAt",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "endedAt",
+            "columnName": "endedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "distanceMeters",
+            "columnName": "distanceMeters",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
-          "autoGenerate": false,
+          "autoGenerate": true,
           "columnNames": [
-            "profileId"
+            "id"
           ]
         },
+        "indices": [
+          {
+            "name": "index_trip_records_profileId",
+            "unique": false,
+            "columnNames": [
+              "profileId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_trip_records_profileId` ON `${TABLE_NAME}` (`profileId`)"
+          }
+        ],
         "foreignKeys": [
           {
             "table": "profiles",
@@ -94,11 +104,72 @@
             ]
           }
         ]
+      },
+      {
+        "tableName": "trip_stops",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `tripId` INTEGER NOT NULL, `position` INTEGER NOT NULL, `placeName` TEXT NOT NULL, FOREIGN KEY(`tripId`) REFERENCES `trip_records`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tripId",
+            "columnName": "tripId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "placeName",
+            "columnName": "placeName",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_trip_stops_tripId_position",
+            "unique": true,
+            "columnNames": [
+              "tripId",
+              "position"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_stops_tripId_position` ON `${TABLE_NAME}` (`tripId`, `position`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "trip_records",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "tripId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '39e7e179d9b7fe7e2e72deb63d624d7e')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b238696ce7f9545fdf5d73687b1d1e51')"
     ]
   }
 }
