@@ -24,19 +24,19 @@ import androidx.lifecycle.compose.rememberLifecycleOwner
 import com.google.android.filament.Engine
 import com.triparchive.data.character.CharacterLook
 import io.github.sceneview.RenderQuality
-import io.github.sceneview.SceneView
 import io.github.sceneview.SceneScope
+import io.github.sceneview.SceneView
 import io.github.sceneview.SurfaceType
 import io.github.sceneview.loaders.ModelLoader
 import io.github.sceneview.math.Position
 import io.github.sceneview.model.ModelInstance
-import io.github.sceneview.node.ModelNode as RiggedModelNode
 import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberMainLightNode
 import io.github.sceneview.rememberModelInstance
 import io.github.sceneview.rememberModelLoader
 import io.github.sceneview.rememberView
+import io.github.sceneview.node.ModelNode as RiggedModelNode
 
 @Composable
 internal fun ProfileCharacter(
