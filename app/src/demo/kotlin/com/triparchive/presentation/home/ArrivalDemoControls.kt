@@ -13,18 +13,20 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.triparchive.core.designsystem.TripArchiveTheme
-import com.triparchive.data.navigation.DestinationState
+import com.triparchive.domain.navigation.Destination
+import com.triparchive.domain.navigation.DestinationState
 
 @Composable
 internal fun ArrivalDemoControls(
     destination: DestinationState,
     isSimulating: Boolean,
     canSimulate: Boolean,
-    onArrive: (String) -> Unit,
+    onArrive: (Destination) -> Unit,
     onReset: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val name = destination.name?.takeIf { it.isNotBlank() && destination.routing }
+    val current = destination.current?.takeIf { destination.routing }
+    val name = current?.name
     val enabled = canSimulate && name != null
     Column(modifier.background(Color(0xFFFFF2CC)).padding(8.dp)) {
         Text(if (isSimulating) "데모 · 도착 재현 중" else "데모 · SDK 목적지 사용")
@@ -40,7 +42,7 @@ internal fun ArrivalDemoControls(
                         role = Role.Button,
                         interactionSource = null,
                         indication = null,
-                    ) { name?.let(onArrive) }
+                    ) { current?.let(onArrive) }
                     .padding(12.dp),
         )
         if (isSimulating) {
@@ -60,6 +62,16 @@ internal fun ArrivalDemoControls(
 @Composable
 private fun ArrivalDemoControlsPreview() {
     TripArchiveTheme {
-        ArrivalDemoControls(DestinationState("성심당 DCC점", routing = true), false, true, {}, {})
+        ArrivalDemoControls(
+            DestinationState(
+                current = Destination(1, "성심당 DCC점", 36.0, 127.0),
+                routing = true,
+            ),
+            false,
+            true,
+            {
+            },
+            {},
+        )
     }
 }

@@ -26,12 +26,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -46,9 +46,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.triparchive.R
-import com.triparchive.data.navigation.DestinationState
-import com.triparchive.data.navigation.PleosDestinationSource
 import com.triparchive.data.profile.Profile
+import com.triparchive.domain.navigation.Destination
+import com.triparchive.domain.navigation.DestinationState
 import com.triparchive.presentation.home.components.ArrivalDialog
 import com.triparchive.presentation.home.components.HomeDestinationSheet
 import com.triparchive.presentation.management.ActionButton
@@ -65,18 +65,18 @@ fun DestinationHome(
     profile: Profile,
     onProfileClick: () -> Unit,
     onFinish: () -> Unit,
-    source: Flow<DestinationState>? = null,
+    source: Flow<DestinationState>,
     modifier: Modifier = Modifier,
     renderCharacter: Boolean = true,
     drawBackground: Boolean = true,
     onMapClick: () -> Unit = {},
-    onArrival: (String) -> Unit = {},
-    saveTrip: suspend (String?) -> Boolean = { true },
+    onArrival: (Destination) -> Unit = {},
+    simulateArrival: (Destination) -> Destination? = { null },
+    saveTrip: suspend (Destination?) -> Boolean = { true },
 ) {
-    val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var destination by remember(profile.id) { mutableStateOf(DestinationState()) }
-    var acknowledged by remember(profile.id) { mutableStateOf<String?>(null) }
+    var acknowledged by remember(profile.id) { mutableStateOf<Long?>(null) }
     var confirm by remember(profile.id) { mutableStateOf(false) }
     var finishing by remember(profile.id) { mutableStateOf(false) }
     var saving by remember(profile.id) { mutableStateOf(false) }
@@ -88,30 +88,36 @@ fun DestinationHome(
     LaunchedEffect(profile.id, lifecycle, source, finishing) {
         if (finishing) return@LaunchedEffect
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            (source ?: PleosDestinationSource(context.applicationContext).observe()).collect {
-                if (it.routing && it.name != null) acknowledged = null
+            source.collect {
                 destination = it
             }
         }
     }
-    var demoArrival by remember(profile.id) { mutableStateOf<String?>(null) }
-    val arrival = if (finishing) null else demoArrival ?: destination.arrived?.takeUnless { it == acknowledged }
+    var demoArrival by remember(profile.id) { mutableStateOf<Destination?>(null) }
+    val arrival =
+        if (finishing) {
+            null
+        } else {
+            demoArrival
+                ?: destination.pendingArrival?.takeUnless { it.id == acknowledged }
+        }
     val acknowledgeArrival = {
         if (!confirm && !finishing) {
             arrival?.let(onArrival)
-            acknowledged = arrival
+            acknowledged = arrival?.id
             demoArrival = null
         }
     }
-    var secondsRemaining by remember(profile.id, arrival) { mutableIntStateOf(5) }
-    LaunchedEffect(arrival, confirm, lifecycle) {
+    val currentAcknowledgeArrival by rememberUpdatedState(acknowledgeArrival)
+    var secondsRemaining by remember(profile.id, arrival?.id) { mutableIntStateOf(5) }
+    LaunchedEffect(arrival?.id, confirm, lifecycle) {
         if (arrival != null && !confirm) {
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 while (secondsRemaining > 0) {
                     delay(1000)
                     secondsRemaining--
                 }
-                acknowledgeArrival()
+                currentAcknowledgeArrival()
             }
         }
     }
@@ -133,16 +139,17 @@ fun DestinationHome(
             renderCharacter = renderCharacter,
             background = if (drawBackground) painterResource(R.drawable.home_street_background) else null,
         )
+        CategoryLookupIndicator(destination, Modifier.align(Alignment.TopCenter).padding(top = 12.dp))
         HomeDestinationSheet(
             nickname = profile.nickname,
-            destination = arrival ?: destination.name?.takeIf { destination.routing && it.isNotBlank() },
+            destination = arrival?.name ?: destination.current?.name?.takeIf { destination.routing },
             scale = s,
             onFinish = { if (!finishing) confirm = true },
             modifier = Modifier.align(Alignment.BottomCenter),
         )
         if (arrival != null && !confirm) {
             ArrivalDialog(
-                destination = arrival,
+                destination = arrival.name,
                 secondsRemaining = secondsRemaining,
                 scale = s,
                 isDemo = demoArrival != null,
@@ -154,7 +161,7 @@ fun DestinationHome(
             destination = destination,
             isSimulating = demoArrival != null,
             canSimulate = !finishing && arrival == null && !confirm,
-            onArrive = { demoArrival = it },
+            onArrive = { demoArrival = simulateArrival(it) },
             onReset = { demoArrival = null },
             modifier = Modifier.align(Alignment.CenterEnd),
         )

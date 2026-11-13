@@ -256,8 +256,10 @@ fun OnboardingNavigation(
                                 onMapClick = {
                                     if (backStack.lastOrNull() == home) backStack.add(VisitMap(profile.id))
                                 },
+                                source = tripSession.destination,
                                 onArrival = tripSession::recordArrival,
-                                saveTrip = { pendingArrival -> tripSession.save(profile.id, pendingArrival) },
+                                simulateArrival = tripSession::createDemoArrival,
+                                saveTrip = { pending -> tripSession.save(profile.id, pending) },
                                 onFinish = {
                                     if (backStack.lastOrNull() == home) {
                                         selectionViewModel.clearSelection()

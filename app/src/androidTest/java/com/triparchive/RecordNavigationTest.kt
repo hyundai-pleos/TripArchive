@@ -14,6 +14,7 @@ import com.triparchive.data.local.TripArchiveDatabase
 import com.triparchive.data.profile.Profile
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.data.record.NewTripRecord
+import com.triparchive.domain.record.TripStopDraft
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -46,7 +47,7 @@ class RecordNavigationTest {
                                 startedAt = 1_700_000_000_000,
                                 endedAt = 1_700_100_000_000,
                                 distanceMeters = 341_000,
-                                stops = listOf("서울시청", "안목해변"),
+                                stops = listOf("서울시청", "안목해변").map { TripStopDraft(it) },
                             ),
                         )
                         id

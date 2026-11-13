@@ -1,5 +1,7 @@
 package com.triparchive.data.record
 
+import com.triparchive.domain.record.TripStopDraft
+
 /** Explicitly invoked development data. Never called by application startup. */
 object RecordFixtures {
     suspend fun insert(
@@ -13,7 +15,7 @@ object RecordFixtures {
                 startedAt = 1793491200000,
                 endedAt = 1793664000000,
                 distanceMeters = null,
-                stops = listOf("서울시청", "강릉 안목해변", "속초 중앙시장"),
+                stops = listOf("서울시청", "강릉 안목해변", "속초 중앙시장").map { TripStopDraft(it) },
             ),
         )
         repository.saveCompletedRecord(
@@ -23,7 +25,7 @@ object RecordFixtures {
                 startedAt = 1790812800000,
                 endedAt = 1790985600000,
                 distanceMeters = null,
-                stops = listOf("서울 성동구", "대전 유성구", "부산 해운대구"),
+                stops = listOf("서울 성동구", "대전 유성구", "부산 해운대구").map { TripStopDraft(it) },
             ),
         )
     }

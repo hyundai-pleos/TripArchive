@@ -10,6 +10,8 @@ import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.data.profile.RoomProfileRepository
 import com.triparchive.data.record.NewTripRecord
 import com.triparchive.data.record.RoomRecordRepository
+import com.triparchive.domain.navigation.DestinationCategory
+import com.triparchive.domain.record.TripStopDraft
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -38,14 +40,43 @@ class RecordStorageTest {
                 val first = profiles.create("첫째", ProfileRelationship.PARENT)
                 val second = profiles.create("둘째", ProfileRelationship.CHILD)
                 var records = RoomRecordRepository(database.recordDao())
-                val old = records.saveCompletedRecord(first, NewTripRecord("이전", 1, 2, null, listOf("출발", "도착")))
-                val newer = records.saveCompletedRecord(first, NewTripRecord("최신", 3, 4, 12345, listOf("하나", "둘", "셋")))
+                val old =
+                    records.saveCompletedRecord(
+                        first,
+                        NewTripRecord(
+                            "이전",
+                            1,
+                            2,
+                            null,
+                            listOf("출발", "도착").map {
+                                TripStopDraft(it)
+                            },
+                        ),
+                    )
+                val newer =
+                    records.saveCompletedRecord(
+                        first,
+                        NewTripRecord(
+                            "최신",
+                            3,
+                            4,
+                            12345,
+                            listOf(
+                                TripStopDraft("하나", DestinationCategory.MART),
+                                TripStopDraft("둘", DestinationCategory.FOOD),
+                                TripStopDraft("셋", DestinationCategory.HOSPITAL),
+                            ),
+                        ),
+                    )
                 val other = records.saveCompletedRecord(second, NewTripRecord("다른 프로필", 1, 2, null, emptyList()))
                 database.openHelper.writableDatabase.execSQL(
                     "CREATE TRIGGER fail_stop BEFORE INSERT ON trip_stops BEGIN SELECT RAISE(ABORT, 'stop failed'); END",
                 )
                 try {
-                    records.saveCompletedRecord(first, NewTripRecord("실패", 1, 2, null, listOf("장소")))
+                    records.saveCompletedRecord(
+                        first,
+                        NewTripRecord("실패", 1, 2, null, listOf("장소").map { TripStopDraft(it) }),
+                    )
                     throw AssertionError("Stop insert should fail")
                 } catch (_: android.database.SQLException) {
                     // The parent record must roll back together with its stops.
@@ -70,6 +101,14 @@ class RecordStorageTest {
                         .observeRecord(first, newer)
                         .first()!!
                         .record.distanceMeters,
+                )
+                assertEquals(
+                    listOf("MART", "FOOD", "HOSPITAL"),
+                    records
+                        .observeRecord(first, newer)
+                        .first()!!
+                        .stops
+                        .map { it.category },
                 )
                 database.profileDao().delete(first)
                 assertTrue(records.observeRecords(first).first().isEmpty())
@@ -124,7 +163,19 @@ class RecordStorageTest {
                 assertEquals("준", profile?.nickname)
                 assertEquals(ProfileRelationship.PARENT, profile?.relationship)
                 val repository = RoomRecordRepository(database.recordDao())
-                val id = repository.saveCompletedRecord(42, NewTripRecord("여행", 1, 2, null, listOf("서울", "부산")))
+                val id =
+                    repository.saveCompletedRecord(
+                        42,
+                        NewTripRecord(
+                            "여행",
+                            1,
+                            2,
+                            null,
+                            listOf("서울", "부산").map {
+                                TripStopDraft(it)
+                            },
+                        ),
+                    )
                 assertEquals(
                     2,
                     repository
