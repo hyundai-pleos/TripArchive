@@ -26,7 +26,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.triparchive.core.designsystem.TripArchiveTheme
 import com.triparchive.domain.navigation.DestinationCategory
-import com.triparchive.presentation.home.label
 import com.triparchive.presentation.management.ActionButton
 import com.triparchive.presentation.management.Ink
 import com.triparchive.presentation.management.Pink
@@ -72,15 +71,6 @@ internal fun HomeDestinationSheet(
         ) {
             DestinationCategoryIcon(category, Modifier.size((48 * scale).dp))
             Spacer(Modifier.width((10 * scale).dp))
-            if (category != null) {
-                Text(
-                    category.label,
-                    color = Pink,
-                    fontSize = (24 * scale).sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                Spacer(Modifier.width((8 * scale).dp))
-            }
             Text(
                 destination ?: "목적지를 설정하면 기록이 시작됩니다",
                 modifier = Modifier.weight(1f),
