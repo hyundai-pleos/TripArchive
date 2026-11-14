@@ -136,6 +136,31 @@ internal fun Modifier.movingRoadCenterLine(): Modifier {
                 path.close()
                 drawPath(path, Color(0xFFFFF9E8))
             }
+            // Paired road-surface markings stay visible beside the character. They share
+            // the center line's world phase, and spread outward toward the viewer.
+            val sideDashCount = DASH_COUNT * 2
+            for (index in -1..sideDashCount) {
+                val start = (index + (phase.floatValue * 2f) % 1f) / sideDashCount
+                val end = start + 0.45f / sideDashCount
+                if (end <= 0f || start >= 1f) continue
+                val farDepth = start.coerceIn(0f, 1f).let { it * it }
+                val nearDepth = end.coerceIn(0f, 1f).let { it * it }
+                val farDistance = (ROAD_BOTTOM - ROAD_HORIZON) * farDepth
+                val nearDistance = (ROAD_BOTTOM - ROAD_HORIZON) * nearDepth
+                val farWidth = 0.8f + 7f * farDepth
+                val nearWidth = 0.8f + 7f * nearDepth
+                for (side in listOf(-1f, 1f)) {
+                    val farX = ROAD_CENTER + side * farDistance * 1.5f
+                    val nearX = ROAD_CENTER + side * nearDistance * 1.5f
+                    path.reset()
+                    path.moveTo(farX - farWidth, ROAD_HORIZON + farDistance)
+                    path.lineTo(farX + farWidth, ROAD_HORIZON + farDistance)
+                    path.lineTo(nearX + nearWidth, ROAD_HORIZON + nearDistance)
+                    path.lineTo(nearX - nearWidth, ROAD_HORIZON + nearDistance)
+                    path.close()
+                    drawPath(path, Color(0xBFFFFFF0))
+                }
+            }
         }
     }
 }
