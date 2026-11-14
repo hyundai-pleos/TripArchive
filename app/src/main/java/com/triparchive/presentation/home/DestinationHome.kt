@@ -45,6 +45,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import androidx.lifecycle.repeatOnLifecycle
 import com.triparchive.R
 import com.triparchive.data.profile.Profile
@@ -53,6 +54,7 @@ import com.triparchive.domain.navigation.DestinationCategory
 import com.triparchive.domain.navigation.DestinationState
 import com.triparchive.presentation.LocalDrivingRestricted
 import com.triparchive.presentation.home.components.ArrivalDialog
+import com.triparchive.presentation.home.components.CategorySelectionDialog
 import com.triparchive.presentation.home.components.HomeDestinationSheet
 import com.triparchive.presentation.management.ActionButton
 import com.triparchive.presentation.management.Gray
@@ -64,7 +66,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
 @Composable
-fun DestinationHome(
+internal fun DestinationHome(
     profile: Profile,
     onProfileClick: () -> Unit,
     onFinish: () -> Unit,
@@ -79,9 +81,13 @@ fun DestinationHome(
     simulateArrival: (Destination) -> Destination? = { null },
     saveTrip: suspend (Destination?) -> Boolean = { true },
     onDestinationCategoryChange: (DestinationCategory?) -> Unit = {},
+    categorySelectionState: CategorySelectionState? = null,
+    homeActive: Boolean = true,
 ) {
     val drivingRestricted = LocalDrivingRestricted.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val lifecycleState by lifecycle.currentStateAsState()
+    val selection = categorySelectionState ?: remember(profile.id) { CategorySelectionState() }
     var destination by remember(profile.id) { mutableStateOf(DestinationState()) }
     var acknowledged by remember(profile.id) { mutableStateOf<Long?>(null) }
     var confirm by remember(profile.id) { mutableStateOf(false) }
@@ -116,13 +122,15 @@ fun DestinationHome(
         }
     }
     var demoArrival by remember(profile.id) { mutableStateOf<Destination?>(null) }
-    val arrival =
+    val rawArrival =
         if (finishing) {
             null
         } else {
-            demoArrival
-                ?: effectiveDestination.pendingArrival?.takeUnless { it.id == acknowledged }
+            demoArrival ?: effectiveDestination.pendingArrival?.takeUnless { it.id == acknowledged }
         }
+    LaunchedEffect(effectiveDestination) { selection.update(effectiveDestination) }
+    val arrival = rawArrival?.let(selection::apply)
+    val currentDestination = effectiveDestination.current?.let(selection::apply)
     val acknowledgeArrival = {
         if (!confirm && !finishing) {
             arrival?.let(onArrival)
@@ -132,8 +140,11 @@ fun DestinationHome(
         }
     }
     val destinationCategory =
-        arrival?.category
-            ?: effectiveDestination.current?.category?.takeIf { arrival == null && effectiveDestination.routing }
+        if (arrival != null) {
+            arrival.category
+        } else {
+            currentDestination?.category?.takeIf { effectiveDestination.routing }
+        }
     LaunchedEffect(profile.id, destinationCategory, finishing) {
         latestCategoryChange(if (finishing) null else destinationCategory)
     }
@@ -151,6 +162,20 @@ fun DestinationHome(
             }
         }
     }
+    val showCategoryDialog =
+        selection.isPendingFor(effectiveDestination.current) && effectiveDestination.routing &&
+            arrival == null && !confirm && !finishing && !drivingRestricted && homeActive &&
+            lifecycleState.isAtLeast(Lifecycle.State.STARTED)
+    LaunchedEffect(showCategoryDialog, lifecycle) {
+        if (showCategoryDialog) {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (selection.pending) {
+                    delay(100)
+                    selection.tick()
+                }
+            }
+        }
+    }
     BoxWithConstraints(
         modifier
             .fillMaxSize()
@@ -158,7 +183,7 @@ fun DestinationHome(
             .background(if (drawBackground) Color.White else Color.Transparent)
             .drawWithContent {
                 drawContent()
-                if (arrival != null || confirm) drawRect(Color.Black.copy(alpha = 0.2f))
+                if (arrival != null || confirm || showCategoryDialog) drawRect(Color.Black.copy(alpha = 0.2f))
             }.windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout)),
     ) {
         val s = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
@@ -170,7 +195,13 @@ fun DestinationHome(
             destinationCategory = destinationCategory,
             drawBackground = drawBackground,
         )
-        CategoryLookupIndicator(effectiveDestination, Modifier.align(Alignment.TopCenter).padding(top = 12.dp))
+        CategoryLookupIndicator(
+            effectiveDestination.copy(
+                current = currentDestination,
+                pendingArrival = effectiveDestination.pendingArrival?.let(selection::apply),
+            ),
+            Modifier.align(Alignment.TopCenter).padding(top = 12.dp),
+        )
         HomeDestinationSheet(
             nickname = profile.nickname,
             category = destinationCategory,
@@ -179,6 +210,16 @@ fun DestinationHome(
             onFinish = { if (!finishing) confirm = true },
             modifier = Modifier.align(Alignment.BottomCenter),
         )
+        if (showCategoryDialog) {
+            CategorySelectionDialog(
+                selected = selection.selected,
+                secondsRemaining = selection.secondsRemaining,
+                scale = s,
+                onSelect = selection::select,
+                onConfirm = selection::confirm,
+                onDismiss = selection::dismiss,
+            )
+        }
         if (arrival != null && !confirm) {
             ArrivalDialog(
                 destination = arrival.name,
@@ -195,7 +236,9 @@ fun DestinationHome(
             demoInput = demoInput,
             isSimulating = demoArrival != null || (arrival != null && demoDestination != null),
             canSimulate = !finishing && arrival == null && !confirm,
-            onArrive = { demoArrival = simulateArrival(it) },
+            onArrive = { current ->
+                demoArrival = simulateArrival(current)?.also { selection.copyDecision(current, it) }
+            },
             onReset = { demoArrival = null },
             modifier = Modifier.align(Alignment.TopStart).padding(start = (16 * s).dp, top = (144 * s).dp),
         )
@@ -238,6 +281,7 @@ fun DestinationHome(
                                         confirm = false
                                         demoArrival = null
                                         demoInput.reset()
+                                        selection.clear()
                                         latestCategoryChange(null)
                                         destination = DestinationState()
                                         finishing = true
