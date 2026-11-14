@@ -42,6 +42,8 @@ import io.github.sceneview.model.getAnimationIndex
 import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberCollisionSystem
 import io.github.sceneview.rememberEngine
+import io.github.sceneview.rememberEnvironment
+import io.github.sceneview.rememberEnvironmentLoader
 import io.github.sceneview.rememberMainLightNode
 import io.github.sceneview.rememberModelLoader
 import io.github.sceneview.rememberScene
@@ -111,6 +113,8 @@ internal fun ProfileCharacter(
         }
 
     val scene = rememberScene(engine)
+    val environmentLoader = rememberEnvironmentLoader(engine)
+    val environment = rememberEnvironment(environmentLoader, isOpaque = false)
     val collisionSystem = rememberCollisionSystem(renderView)
     val sceneNodeManager = remember(scene, collisionSystem) { SceneNodeManager(scene, collisionSystem) }
     val mainLightNode =
@@ -155,6 +159,7 @@ internal fun ProfileCharacter(
             modelLoader = modelLoader,
             view = renderView,
             scene = scene,
+            environment = environment,
             collisionSystem = collisionSystem,
             autoCenterContent = false,
             mainLightNode = mainLightNode,
