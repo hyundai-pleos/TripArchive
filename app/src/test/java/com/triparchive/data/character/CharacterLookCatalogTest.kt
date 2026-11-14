@@ -10,9 +10,9 @@ import kotlin.random.Random
 class CharacterLookCatalogTest {
     @Test
     fun catalogProvidesAgeSpecificOutfitAndAccessoryCombinations() {
-        assertEquals(9, CharacterLookCatalog.looksFor(ProfileRelationship.CHILD).size)
-        assertEquals(9, CharacterLookCatalog.looksFor(ProfileRelationship.PARTNER).size)
-        assertEquals(9, CharacterLookCatalog.looksFor(ProfileRelationship.PARENT).size)
+        assertEquals(18, CharacterLookCatalog.looksFor(ProfileRelationship.CHILD).size)
+        assertEquals(18, CharacterLookCatalog.looksFor(ProfileRelationship.PARTNER).size)
+        assertEquals(18, CharacterLookCatalog.looksFor(ProfileRelationship.PARENT).size)
 
         val childLook = CharacterLookCatalog.looksFor(ProfileRelationship.CHILD).first()
         val adultLook = CharacterLookCatalog.looksFor(ProfileRelationship.PARTNER).first()
