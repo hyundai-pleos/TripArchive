@@ -181,7 +181,7 @@ internal fun ProfileCharacter(
                                         presentation.targetAnimationSpeed,
                                         deltaSeconds,
                                     )
-                                applyCharacterAnimationFrame(attachment.characterNode, frame)
+                                applyCharacterAnimationFrame(attachment.characterNode, frame, engine)
                             }
                         }
                         SideEffect { modelAttached = true }
@@ -267,8 +267,8 @@ private fun SceneScope.AdultCompositeCharacter(
                             presentation.targetAnimationSpeed,
                             deltaSeconds,
                         )
-                    applyCharacterAnimationFrame(binding.characterNode, frame)
-                    applyCharacterAnimationFrame(binding.modelNode, frame)
+                    applyCharacterAnimationFrame(binding.characterNode, frame, engine)
+                    applyCharacterAnimationFrame(binding.modelNode, frame, engine)
                 }
             }
         }
@@ -279,14 +279,21 @@ private fun SceneScope.AdultCompositeCharacter(
 private fun applyCharacterAnimationFrame(
     character: RiggedModelNode?,
     frame: CharacterAnimationFrame,
+    engine: Engine,
 ) {
     if (character == null) return
     val animator = character.animator
-    val currentIndex = animator.getAnimationIndex(frame.clip.assetName) ?: animator.getAnimationIndex("Idle") ?: return
+    val requestedCurrentIndex = animator.getAnimationIndex(frame.clip.assetName)
+    val currentIndex = requestedCurrentIndex ?: animator.getAnimationIndex("Idle") ?: return
+    val currentClip = if (requestedCurrentIndex == null) CharacterAnimationClip.IDLE else frame.clip
     animator.applyAnimation(currentIndex, animationTime(animator, currentIndex, frame.clipTimeSeconds))
     val previousClip = frame.previousClip
+    var previousIndex: Int? = null
+    var resolvedPreviousClip = CharacterAnimationClip.IDLE
     if (previousClip != null) {
-        val previousIndex = animator.getAnimationIndex(previousClip.assetName) ?: animator.getAnimationIndex("Idle")
+        val requestedPreviousIndex = animator.getAnimationIndex(previousClip.assetName)
+        previousIndex = requestedPreviousIndex ?: animator.getAnimationIndex("Idle")
+        resolvedPreviousClip = if (requestedPreviousIndex == null) CharacterAnimationClip.IDLE else previousClip
         if (previousIndex != null) {
             animator.applyCrossFade(
                 previousIndex,
@@ -295,8 +302,53 @@ private fun applyCharacterAnimationFrame(
             )
         }
     }
+    val currentWave =
+        gaitMorphWave(
+            currentClip,
+            frame.clipTimeSeconds,
+            animator.getAnimationDuration(currentIndex),
+        )
+    val previousWave =
+        if (previousClip != null && previousIndex != null) {
+            gaitMorphWave(
+                resolvedPreviousClip,
+                frame.previousTimeSeconds,
+                animator.getAnimationDuration(previousIndex),
+            )
+        } else {
+            0f
+        }
+    applyGaitMorphWeights(
+        character = character,
+        engine = engine,
+        weights =
+            blendedGaitMorphWeights(
+                currentWave,
+                previousWave,
+                if (previousClip ==
+                    null
+                ) {
+                    1f
+                } else {
+                    frame.crossFadeAlpha
+                },
+            ),
+    )
     animator.updateBoneMatrices()
     character.nodes.forEach { it.onWorldTransformChanged() }
+}
+
+private fun applyGaitMorphWeights(
+    character: RiggedModelNode,
+    engine: Engine,
+    weights: FloatArray,
+) {
+    val manager = engine.renderableManager
+    character.modelInstance.entities.forEach { entity ->
+        val renderableInstance = manager.getInstance(entity)
+        if (renderableInstance == 0 || manager.getMorphTargetCount(renderableInstance) != weights.size) return@forEach
+        manager.setMorphWeights(renderableInstance, weights, 0)
+    }
 }
 
 private fun animationTime(

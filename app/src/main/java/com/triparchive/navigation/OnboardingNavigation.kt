@@ -186,7 +186,7 @@ private fun OnboardingNavigationContent(
         ) {
             if (listState == ProfileListState.Error) {
                 Text("프로필을 불러오지 못했어요.")
-                Button(onClick = selectionViewModel::retry) { Text("다시 시도") }
+                Button(onClick = selectionViewModel::retry, enabled = !drivingRestricted) { Text("다시 시도") }
             } else {
                 CircularProgressIndicator()
             }
@@ -325,7 +325,16 @@ private fun OnboardingNavigationContent(
                                     verticalArrangement = Arrangement.Center,
                                 ) {
                                     Text(tripSessionErrors.getValue(profile.id))
-                                    Button(onClick = { selectionViewModel.openOrResumeTrip(profile) }) {
+                                    Button(
+                                        onClick = {
+                                            if (!drivingRestricted) {
+                                                selectionViewModel.openOrResumeTrip(
+                                                    profile,
+                                                )
+                                            }
+                                        },
+                                        enabled = !drivingRestricted,
+                                    ) {
                                         Text("다시 시도")
                                     }
                                 }
@@ -497,7 +506,9 @@ private fun OnboardingNavigationContent(
                 onDismissRequest = viewModel::dismissMessage,
                 title = { Text("저장 실패") },
                 text = { Text(message) },
-                confirmButton = { TextButton(onClick = viewModel::save) { Text("다시 시도") } },
+                confirmButton = {
+                    TextButton(onClick = viewModel::save, enabled = !drivingRestricted) { Text("다시 시도") }
+                },
                 dismissButton = { TextButton(onClick = viewModel::dismissMessage) { Text("닫기") } },
             )
         }

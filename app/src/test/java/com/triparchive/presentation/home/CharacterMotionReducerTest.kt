@@ -40,6 +40,8 @@ class CharacterMotionReducerTest {
         assertEquals(CharacterMotionBand.LOW_SPEED, reducer.update(5f / 3.6f, 5_000L))
         assertEquals(CharacterMotionBand.LOW_SPEED, reducer.update(2.9f / 3.6f, 6_000L))
         assertEquals(CharacterMotionBand.LOW_SPEED, reducer.update(0f, 7_000L))
+        assertEquals(300L, reducer.pendingTransitionDelayMillis(7_000L))
+        assertEquals(CharacterMotionBand.LOW_SPEED, reducer.update(0f, 7_299L))
         assertEquals(CharacterMotionBand.WAITING, reducer.update(0f, 7_300L))
     }
 
@@ -88,5 +90,23 @@ class CharacterMotionReducerTest {
         assertEquals(CharacterAnimationClip.RUN, runFrame.clip)
         assertEquals(CharacterAnimationClip.WALK, runFrame.previousClip)
         assertEquals(0f, runFrame.crossFadeAlpha, 0.001f)
+    }
+
+    @Test
+    fun morphGaitWeightsBlendFromPreviousClipToCurrentClip() {
+        val walkWave = gaitMorphWave(CharacterAnimationClip.WALK, 1.08f / 4f, 1.08f)
+        val runWave = gaitMorphWave(CharacterAnimationClip.RUN, 0.66f / 4f, 0.66f)
+        assertEquals(0.72f, walkWave, 0.001f)
+        assertEquals(1f, runWave, 0.001f)
+        assertEquals(0f, gaitMorphWave(CharacterAnimationClip.IDLE, 0.25f, 1f), 0.001f)
+
+        val atStart = blendedGaitMorphWeights(runWave, walkWave, 0f)
+        assertEquals(walkWave, atStart[0], 0.001f)
+        assertEquals(-walkWave, atStart[1], 0.001f)
+        val halfway = blendedGaitMorphWeights(runWave, walkWave, 0.5f)
+        assertEquals(0.86f, halfway[0], 0.001f)
+        assertEquals(-0.86f, halfway[2], 0.001f)
+        val atEnd = blendedGaitMorphWeights(runWave, walkWave, 1f)
+        assertEquals(runWave, atEnd[0], 0.001f)
     }
 }

@@ -1,7 +1,9 @@
 package com.triparchive.presentation.home
 
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.exp
+import kotlin.math.sin
 
 internal enum class CharacterMotionBand {
     UNAVAILABLE,
@@ -12,10 +14,11 @@ internal enum class CharacterMotionBand {
 
 internal enum class CharacterAnimationClip(
     val assetName: String,
+    val morphAmplitude: Float,
 ) {
-    IDLE("Idle"),
-    WALK("Walk"),
-    RUN("Run"),
+    IDLE("Idle", 0f),
+    WALK("Walk", 0.72f),
+    RUN("Run", 1f),
 }
 
 internal data class CharacterMotionPresentation(
@@ -163,6 +166,31 @@ private fun interpolate(
     return outputMin + (outputMax - outputMin) * fraction
 }
 
+/** Samples the same eight linear intervals used by the authored nine-key gait sine cycle. */
+internal fun gaitMorphWave(
+    clip: CharacterAnimationClip,
+    timeSeconds: Float,
+    durationSeconds: Float,
+): Float {
+    if (clip.morphAmplitude == 0f || !durationSeconds.isFinite() || durationSeconds <= 0f) return 0f
+    val progress = ((timeSeconds % durationSeconds) / durationSeconds).coerceIn(0f, 1f)
+    val samplePosition = progress * GAIT_SAMPLE_SEGMENTS
+    val sampleIndex = samplePosition.toInt().coerceIn(0, GAIT_SAMPLE_SEGMENTS - 1)
+    val sampleFraction = samplePosition - sampleIndex
+    val from = sin(2.0 * PI * sampleIndex / GAIT_SAMPLE_SEGMENTS).toFloat()
+    val to = sin(2.0 * PI * (sampleIndex + 1) / GAIT_SAMPLE_SEGMENTS).toFloat()
+    return (from + (to - from) * sampleFraction) * clip.morphAmplitude
+}
+
+internal fun blendedGaitMorphWeights(
+    currentWave: Float,
+    previousWave: Float,
+    currentWeight: Float,
+): FloatArray {
+    val wave = previousWave + (currentWave - previousWave) * currentWeight.coerceIn(0f, 1f)
+    return floatArrayOf(wave, -wave, -wave, wave)
+}
+
 private const val WALK_SPEED_MIN_KPH = 2f
 private const val WALK_SPEED_CAP_KPH = 30f
 private const val WALK_SPEED_MIN_MULTIPLIER = 0.7f
@@ -171,6 +199,7 @@ private const val RUN_SPEED_MIN_KPH = 30f
 private const val RUN_SPEED_CAP_KPH = 80f
 private const val RUN_SPEED_MIN_MULTIPLIER = 0.8f
 private const val RUN_SPEED_MAX_MULTIPLIER = 1.1f
+private const val GAIT_SAMPLE_SEGMENTS = 8
 
 /** Applies hysteresis at 30 km/h and waits before changing between moving speed bands. */
 internal class CharacterMotionReducer(

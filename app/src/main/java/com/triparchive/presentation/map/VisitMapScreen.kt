@@ -232,7 +232,9 @@ private fun MapAttribution(
     scale: Float,
     modifier: Modifier = Modifier,
 ) {
+    val drivingRestricted = LocalDrivingRestricted.current
     var showAttribution by rememberSaveable { mutableStateOf(false) }
+    val attributionScroll = if (drivingRestricted) Modifier else Modifier.verticalScroll(rememberScrollState())
     Surface(
         modifier = modifier,
         shape = CircleShape,
@@ -256,7 +258,7 @@ private fun MapAttribution(
             title = { Text("지도 출처 및 라이선스") },
             text = {
                 SelectionContainer {
-                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Column(attributionScroll) {
                         Text(
                             "본 데이터는 통계청 통계지리정보서비스(SGIS)에서 공공누리 제1유형으로 개방한 " +
                                 "행정구역 경계를 가공한 것이며(가공: vuski/admdongkor), CC BY 4.0으로 배포됩니다.",
