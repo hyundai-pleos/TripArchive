@@ -1,6 +1,5 @@
 package com.triparchive.presentation.home.components
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,7 +16,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -26,8 +24,9 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.triparchive.R
 import com.triparchive.core.designsystem.TripArchiveTheme
+import com.triparchive.domain.navigation.DestinationCategory
+import com.triparchive.presentation.home.label
 import com.triparchive.presentation.management.ActionButton
 import com.triparchive.presentation.management.Ink
 import com.triparchive.presentation.management.Pink
@@ -39,6 +38,7 @@ internal fun HomeDestinationSheet(
     scale: Float,
     onFinish: () -> Unit,
     modifier: Modifier = Modifier,
+    category: DestinationCategory? = null,
 ) {
     val shape = RoundedCornerShape(topStart = (40 * scale).dp, topEnd = (40 * scale).dp)
     Column(
@@ -70,10 +70,20 @@ internal fun HomeDestinationSheet(
             Modifier.fillMaxWidth().height((63 * scale).dp).padding(horizontal = (10 * scale).dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Image(painterResource(R.drawable.destination_flag), null, Modifier.size((48 * scale).dp))
+            DestinationCategoryIcon(category, Modifier.size((48 * scale).dp))
             Spacer(Modifier.width((10 * scale).dp))
+            if (category != null) {
+                Text(
+                    category.label,
+                    color = Pink,
+                    fontSize = (24 * scale).sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.width((8 * scale).dp))
+            }
             Text(
                 destination ?: "목적지를 설정하면 기록이 시작됩니다",
+                modifier = Modifier.weight(1f),
                 color = Ink,
                 fontSize = (28 * scale).sp,
                 lineHeight = (42 * scale).sp,

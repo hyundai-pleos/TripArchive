@@ -21,14 +21,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.rememberLifecycleOwner
 import com.google.android.filament.Engine
 import com.triparchive.data.character.CharacterLook
+import com.triparchive.domain.navigation.DestinationCategory
 import io.github.sceneview.RenderQuality
-import io.github.sceneview.SceneScope
+import io.github.sceneview.SceneNodeManager
 import io.github.sceneview.SceneView
 import io.github.sceneview.SurfaceType
 import io.github.sceneview.loaders.ModelLoader
@@ -36,10 +38,11 @@ import io.github.sceneview.math.Position
 import io.github.sceneview.model.ModelInstance
 import io.github.sceneview.model.getAnimationIndex
 import io.github.sceneview.rememberCameraNode
+import io.github.sceneview.rememberCollisionSystem
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberMainLightNode
-import io.github.sceneview.rememberModelInstance
 import io.github.sceneview.rememberModelLoader
+import io.github.sceneview.rememberScene
 import io.github.sceneview.rememberView
 import io.github.sceneview.node.ModelNode as RiggedModelNode
 
@@ -49,10 +52,12 @@ internal fun ProfileCharacter(
     modifier: Modifier = Modifier,
     active: Boolean = true,
     prepare: Boolean = false,
+    destinationCategory: DestinationCategory? = null,
 ) {
     if (LocalInspectionMode.current) return
 
     val sharedLoader = LocalCharacterModelLoader.current
+    val configuration = LocalConfiguration.current
     val context = LocalContext.current
     var speedPermissionGranted by
         remember {
@@ -103,92 +108,63 @@ internal fun ProfileCharacter(
             lookAt(Position(0f, 0f, 0f))
         }
 
-    SceneView(
-        modifier = modifier,
-        surfaceType = SurfaceType.TextureSurface,
-        isOpaque = false,
-        renderQuality = RenderQuality.Performance,
-        engine = engine,
-        modelLoader = modelLoader,
-        view = renderView,
-        autoCenterContent = false,
-        mainLightNode =
-            rememberMainLightNode(engine) {
-                intensity = 60_000f
-            },
-        fillLightNode = null,
-        cameraNode = camera,
-        cameraManipulator = null,
-        lifecycle = renderLifecycle,
-        onFrame = {
-            if (modelAttached) prepared = true
-        },
-    ) {
+    val scene = rememberScene(engine)
+    val collisionSystem = rememberCollisionSystem(renderView)
+    val sceneNodeManager = remember(scene, collisionSystem) { SceneNodeManager(scene, collisionSystem) }
+    val mainLightNode =
+        rememberMainLightNode(engine) {
+            intensity = 60_000f
+        }
+    val destinationPropNodes = rememberDestinationPropNodes(modelLoader, engine, sceneNodeManager, destinationCategory)
+    val characterNode =
         if (look.baseAssetPath != null && look.compositeAssetPath != null) {
-            AdultCompositeCharacter(
+            rememberCharacterNode(
                 look = look,
-                baseAssetPath = look.baseAssetPath,
-                compositeAssetPath = look.compositeAssetPath,
                 modelLoader = modelLoader,
                 engine = engine,
+                sceneNodeManager = sceneNodeManager,
                 motionPresentation = motionPresentation,
                 animate = active || (prepare && !prepared),
                 onReady = { modelAttached = true },
             )
         } else {
-            val outfitAssetPath = look.outfitAssetPath
-            val accessoryAssetPath = look.accessoryAssetPath
-            if (outfitAssetPath != null && accessoryAssetPath != null) {
-                key(look.id) {
-                    val outfit = rememberModelInstance(modelLoader, outfitAssetPath)
-                    val accessory = rememberModelInstance(modelLoader, accessoryAssetPath)
-                    if (outfit != null && accessory != null) {
-                        val attachment = remember(outfit, accessory) { AccessoryRigBinding() }
-                        ModelNode(
-                            modelInstance = outfit,
-                            autoAnimate = false,
-                            scaleToUnits = 1f,
-                            centerOrigin = Position(0f, 0f, 0f),
-                            apply = { attachment.characterNode = this },
-                        ) {
-                            ModelNode(
-                                modelInstance = accessory,
-                                autoAnimate = false,
-                                apply = { attachment.accessoryNode = this },
-                            )
-                            DisposableEffect(engine, outfit, accessory, attachment) {
-                                attachAccessoryToHead(engine, attachment)
-                                onDispose {
-                                    attachment.accessoryNode?.parent = null
-                                }
-                            }
-                        }
-                        val latestMotionPresentation by rememberUpdatedState(motionPresentation)
-                        LaunchedEffect(attachment, active, prepare, prepared) {
-                            if (!active && !(prepare && !prepared)) return@LaunchedEffect
-                            val timeline = CharacterAnimationTimeline()
-                            var previousFrameNanos: Long? = null
-                            while (true) {
-                                val frameNanos = withFrameNanos { it }
-                                val deltaSeconds =
-                                    previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f }
-                                        ?: 0f
-                                previousFrameNanos = frameNanos
-                                val presentation = latestMotionPresentation
-                                val frame =
-                                    timeline.advance(
-                                        presentation.animationClip,
-                                        presentation.targetAnimationSpeed,
-                                        deltaSeconds,
-                                    )
-                                applyCharacterAnimationFrame(attachment.characterNode, frame, engine)
-                            }
-                        }
-                        SideEffect { modelAttached = true }
-                    }
-                }
+            key(look.id) {
+                rememberCharacterNode(
+                    look = look,
+                    modelLoader = modelLoader,
+                    engine = engine,
+                    sceneNodeManager = sceneNodeManager,
+                    motionPresentation = motionPresentation,
+                    animate = active || (prepare && !prepared),
+                    onReady = { modelAttached = true },
+                )
             }
         }
+    val sceneNodes = destinationPropNodes + listOfNotNull(characterNode)
+
+    // Recreate only the TextureView and renderer after resize; the scene graph and model nodes stay alive.
+    key(configuration.screenWidthDp, configuration.screenHeightDp) {
+        SceneView(
+            modifier = modifier,
+            surfaceType = SurfaceType.TextureSurface,
+            isOpaque = false,
+            renderQuality = RenderQuality.Performance,
+            engine = engine,
+            modelLoader = modelLoader,
+            view = renderView,
+            scene = scene,
+            collisionSystem = collisionSystem,
+            autoCenterContent = false,
+            mainLightNode = mainLightNode,
+            fillLightNode = null,
+            cameraNode = camera,
+            cameraManipulator = null,
+            lifecycle = renderLifecycle,
+            onFrame = { frameTimeNanos ->
+                if (modelAttached) prepared = true
+                sceneNodes.forEach { it.onFrame(frameTimeNanos) }
+            },
+        )
     }
     LaunchedEffect(renderView) {
         // Keep the character sharp at the surface's native resolution.
@@ -199,81 +175,199 @@ internal fun ProfileCharacter(
     }
 }
 
+@Composable
+private fun rememberDestinationPropNodes(
+    modelLoader: ModelLoader,
+    engine: Engine,
+    sceneNodeManager: SceneNodeManager,
+    selectedCategory: DestinationCategory?,
+): List<RiggedModelNode> {
+    val nodes = mutableListOf<RiggedModelNode>()
+    DestinationCategory.values().forEach { category ->
+        key(category) {
+            val modelInstance =
+                rememberRequestModelInstance(
+                    modelLoader,
+                    engine,
+                    "models/destination_props/${category.assetFileName}",
+                )
+            if (modelInstance != null) {
+                val node =
+                    remember(modelInstance) {
+                        RiggedModelNode(
+                            modelInstance = modelInstance,
+                            autoAnimate = false,
+                            scaleToUnits = 0.22f,
+                            centerOrigin = Position(0f, 0f, 0f),
+                        ).apply {
+                            position = Position(x = 0.5f, y = -0.35f, z = 0f)
+                        }
+                    }
+                SideEffect { node.isVisible = selectedCategory == category }
+                DisposableEffect(sceneNodeManager, node) {
+                    sceneNodeManager.addNode(node)
+                    onDispose {
+                        sceneNodeManager.removeNode(node)
+                        node.destroy()
+                    }
+                }
+                nodes += node
+            }
+        }
+    }
+    return nodes
+}
+
+@Composable
+private fun rememberCharacterNode(
+    look: CharacterLook,
+    modelLoader: ModelLoader,
+    engine: Engine,
+    sceneNodeManager: SceneNodeManager,
+    motionPresentation: CharacterMotionPresentation,
+    animate: Boolean,
+    onReady: () -> Unit,
+): RiggedModelNode? {
+    val baseAssetPath = look.baseAssetPath
+    val compositeAssetPath = look.compositeAssetPath
+    if (baseAssetPath != null && compositeAssetPath != null) {
+        val base = rememberRequestModelInstance(modelLoader, engine, baseAssetPath)
+        val composite = rememberRequestModelInstance(modelLoader, engine, compositeAssetPath)
+        if (base == null || composite == null) return null
+
+        val characterNode =
+            remember(base) {
+                RiggedModelNode(
+                    modelInstance = base,
+                    autoAnimate = false,
+                    scaleToUnits = 1f,
+                    centerOrigin = Position(0f, 0f, 0f),
+                )
+            }
+        val modelNode = remember(composite) { RiggedModelNode(modelInstance = composite, autoAnimate = false) }
+        val binding =
+            remember(characterNode, modelNode) {
+                AdultCompositeBinding().apply {
+                    this.characterNode = characterNode
+                    this.modelNode = modelNode
+                }
+            }
+        DisposableEffect(sceneNodeManager, characterNode) {
+            sceneNodeManager.addNode(characterNode)
+            onDispose {
+                sceneNodeManager.removeNode(characterNode)
+                characterNode.destroy()
+            }
+        }
+        DisposableEffect(characterNode, modelNode) {
+            modelNode.parent = characterNode
+            onDispose {
+                modelNode.parent = null
+                modelNode.destroy()
+            }
+        }
+        DisposableEffect(engine, characterNode, modelNode, binding) {
+            hideAllAdultBaseMeshes(engine, base)
+            applyAdultCompositeLook(engine, modelNode, look)
+            binding.lastAppliedLookId = look.id
+            attachAdultAccessoriesToHead(engine, binding)
+            onDispose { }
+        }
+        DisposableEffect(engine, modelNode, look.id, binding) {
+            if (binding.lastAppliedLookId != look.id) {
+                applyAdultCompositeLook(engine, modelNode, look)
+                binding.lastAppliedLookId = look.id
+            }
+            onDispose { }
+        }
+        SideEffect(onReady)
+        val latestMotionPresentation by rememberUpdatedState(motionPresentation)
+        LaunchedEffect(binding, animate) {
+            if (!animate) return@LaunchedEffect
+            val timeline = CharacterAnimationTimeline()
+            var previousFrameNanos: Long? = null
+            while (true) {
+                val frameNanos = withFrameNanos { it }
+                val deltaSeconds =
+                    previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f } ?: 0f
+                previousFrameNanos = frameNanos
+                val presentation = latestMotionPresentation
+                val frame =
+                    timeline.advance(
+                        presentation.animationClip,
+                        presentation.targetAnimationSpeed,
+                        deltaSeconds,
+                    )
+                applyCharacterAnimationFrame(binding.characterNode, frame, engine)
+                applyCharacterAnimationFrame(binding.modelNode, frame, engine)
+            }
+        }
+        return characterNode
+    }
+
+    val outfitAssetPath = look.outfitAssetPath ?: return null
+    val accessoryAssetPath = look.accessoryAssetPath ?: return null
+    val outfit = rememberRequestModelInstance(modelLoader, engine, outfitAssetPath) ?: return null
+    val accessory = rememberRequestModelInstance(modelLoader, engine, accessoryAssetPath) ?: return null
+    val outfitNode =
+        remember(outfit) {
+            RiggedModelNode(
+                modelInstance = outfit,
+                autoAnimate = false,
+                scaleToUnits = 1f,
+                centerOrigin = Position(0f, 0f, 0f),
+            )
+        }
+    val accessoryNode = remember(accessory) { RiggedModelNode(modelInstance = accessory, autoAnimate = false) }
+    val attachment =
+        remember(outfitNode, accessoryNode) {
+            AccessoryRigBinding().apply {
+                characterNode = outfitNode
+                this.accessoryNode = accessoryNode
+            }
+        }
+    DisposableEffect(sceneNodeManager, outfitNode, accessoryNode, attachment) {
+        sceneNodeManager.addNode(outfitNode)
+        attachAccessoryToHead(engine, attachment)
+        onDispose {
+            accessoryNode.parent = null
+            sceneNodeManager.removeNode(outfitNode)
+            outfitNode.destroy()
+            accessoryNode.destroy()
+        }
+    }
+    SideEffect {
+        attachment.characterNode = outfitNode
+        attachment.accessoryNode = accessoryNode
+        onReady()
+    }
+    val latestMotionPresentation by rememberUpdatedState(motionPresentation)
+    LaunchedEffect(attachment, animate) {
+        if (!animate) return@LaunchedEffect
+        val timeline = CharacterAnimationTimeline()
+        var previousFrameNanos: Long? = null
+        while (true) {
+            val frameNanos = withFrameNanos { it }
+            val deltaSeconds =
+                previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f } ?: 0f
+            previousFrameNanos = frameNanos
+            val presentation = latestMotionPresentation
+            val frame =
+                timeline.advance(
+                    presentation.animationClip,
+                    presentation.targetAnimationSpeed,
+                    deltaSeconds,
+                )
+            applyCharacterAnimationFrame(attachment.characterNode, frame, engine)
+        }
+    }
+    return outfitNode
+}
+
 private class AdultCompositeBinding {
     var characterNode: RiggedModelNode? = null
     var modelNode: RiggedModelNode? = null
     var lastAppliedLookId: String? = null
-}
-
-@Composable
-private fun SceneScope.AdultCompositeCharacter(
-    look: CharacterLook,
-    baseAssetPath: String,
-    compositeAssetPath: String,
-    modelLoader: ModelLoader,
-    engine: Engine,
-    motionPresentation: CharacterMotionPresentation,
-    animate: Boolean,
-    onReady: () -> Unit,
-) {
-    val base = rememberModelInstance(modelLoader, baseAssetPath)
-    val composite = rememberModelInstance(modelLoader, compositeAssetPath)
-    if (base != null && composite != null) {
-        val binding = remember(composite) { AdultCompositeBinding() }
-        ModelNode(
-            modelInstance = base,
-            autoAnimate = false,
-            scaleToUnits = 1f,
-            centerOrigin = Position(0f, 0f, 0f),
-            apply = {
-                binding.characterNode = this
-                hideAllAdultBaseMeshes(engine, base)
-            },
-        ) {
-            ModelNode(
-                modelInstance = composite,
-                autoAnimate = false,
-                apply = {
-                    binding.modelNode = this
-                    applyAdultCompositeLook(engine, this, look)
-                    binding.lastAppliedLookId = look.id
-                },
-            )
-            DisposableEffect(engine, composite, binding) {
-                attachAdultAccessoriesToHead(engine, binding)
-                onDispose { }
-            }
-            DisposableEffect(engine, composite, look.id, binding) {
-                if (binding.lastAppliedLookId != look.id) {
-                    applyAdultCompositeLook(engine, binding.modelNode, look)
-                    binding.lastAppliedLookId = look.id
-                }
-                onDispose { }
-            }
-            val latestMotionPresentation by rememberUpdatedState(motionPresentation)
-            LaunchedEffect(binding, animate) {
-                if (!animate) return@LaunchedEffect
-                val timeline = CharacterAnimationTimeline()
-                var previousFrameNanos: Long? = null
-                while (true) {
-                    val frameNanos = withFrameNanos { it }
-                    val deltaSeconds =
-                        previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f } ?: 0f
-                    previousFrameNanos = frameNanos
-                    val presentation = latestMotionPresentation
-                    val frame =
-                        timeline.advance(
-                            presentation.animationClip,
-                            presentation.targetAnimationSpeed,
-                            deltaSeconds,
-                        )
-                    applyCharacterAnimationFrame(binding.characterNode, frame, engine)
-                    applyCharacterAnimationFrame(binding.modelNode, frame, engine)
-                }
-            }
-        }
-        SideEffect(onReady)
-    }
 }
 
 private fun applyCharacterAnimationFrame(
@@ -462,6 +556,7 @@ private fun attachAccessoryToHead(
         accessory.isVisible = false
         return
     }
+    if (accessory.parent == headNode) return
 
     // Preserve the accessory's authored character-space placement when moving it under the
     // animated head node. Keep the outfit's existing character coordinate frame and model scale.

@@ -24,6 +24,7 @@ import com.triparchive.domain.navigation.DestinationState
 import com.triparchive.presentation.home.DestinationHome
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
@@ -433,6 +434,38 @@ class DestinationHomeTest {
         compose.onNodeWithText("5").assertIsDisplayed()
         compose.mainClock.advanceTimeBy(5100)
         compose.runOnIdle { assertEquals(listOf(1L, 2L), recorded) }
+    }
+
+    @Test
+    fun arrivalCategoryDoesNotFallBackToTheNextActiveDestination() {
+        val hospital = DestinationTestFixtures.place("강릉아산병원", 2, DestinationCategory.HOSPITAL)
+        val state =
+            MutableStateFlow(
+                DestinationState(
+                    current = hospital,
+                    pendingArrival = DestinationTestFixtures.place("성심당 DCC점", 1),
+                    routing = true,
+                ),
+            )
+        var renderedCategory: DestinationCategory? = DestinationCategory.MART
+        compose.setContent {
+            TripArchiveTheme {
+                DestinationHome(
+                    Profile(1, "준", ProfileRelationship.PARENT),
+                    {},
+                    {},
+                    state,
+                    renderCharacter = false,
+                    onDestinationCategoryChange = { renderedCategory = it },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.runOnIdle { assertNull(renderedCategory) }
+        compose.onNodeWithText("병원").assertDoesNotExist()
+        compose.runOnIdle { state.value = state.value.copy(pendingArrival = null) }
+        compose.runOnIdle { assertEquals(DestinationCategory.HOSPITAL, renderedCategory) }
+        compose.onNodeWithText("병원").assertIsDisplayed()
     }
 
     private fun captureIfRequested(

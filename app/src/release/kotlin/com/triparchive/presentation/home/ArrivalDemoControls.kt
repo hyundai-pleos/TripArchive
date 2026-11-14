@@ -9,6 +9,7 @@ import com.triparchive.domain.navigation.DestinationState
 @Composable
 internal fun ArrivalDemoControls(
     destination: DestinationState,
+    demoInput: DestinationDemoInput,
     isSimulating: Boolean,
     canSimulate: Boolean,
     onArrive: (Destination) -> Unit,
