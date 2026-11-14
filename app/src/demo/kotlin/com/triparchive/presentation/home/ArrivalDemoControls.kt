@@ -15,8 +15,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.triparchive.core.designsystem.TripArchiveTheme
-import com.triparchive.data.navigation.DestinationCategory
-import com.triparchive.data.navigation.DestinationState
+import com.triparchive.domain.navigation.Destination
+import com.triparchive.domain.navigation.DestinationCategory
+import com.triparchive.domain.navigation.DestinationState
 
 @Composable
 internal fun ArrivalDemoControls(
@@ -24,14 +25,15 @@ internal fun ArrivalDemoControls(
     demoInput: DestinationDemoInput,
     isSimulating: Boolean,
     canSimulate: Boolean,
-    onArrive: (String) -> Unit,
+    onArrive: (Destination) -> Unit,
     onReset: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (!demoInput.enabled) return
     val current = demoInput.destination.value
     val effectiveDestination = current ?: destination
-    val name = effectiveDestination.name?.takeIf { effectiveDestination.routing }
+    val active = effectiveDestination.current?.takeIf { effectiveDestination.routing }
+    val name = active?.name
     Column(
         modifier
             .widthIn(max = 190.dp)
@@ -42,7 +44,7 @@ internal fun ArrivalDemoControls(
         DestinationCategory.values().forEach { category ->
             DemoOption(
                 label = category.label,
-                selected = current?.category == category && current.routing,
+                selected = current?.current?.category == category && current.routing,
                 enabled = canSimulate,
                 onClick = {
                     demoInput.selectDestination(category.sampleDestination, category)
@@ -51,7 +53,7 @@ internal fun ArrivalDemoControls(
         }
         DemoOption(
             label = "분류 없음",
-            selected = current != null && current.category == null && current.routing,
+            selected = current != null && current.current?.category == null && current.routing,
             enabled = canSimulate,
             onClick = { demoInput.selectDestination("성심당 DCC점", null) },
         )
@@ -69,7 +71,7 @@ internal fun ArrivalDemoControls(
                 if (current?.routing == true) {
                     demoInput.arrive()
                 } else {
-                    name?.let(onArrive)
+                    active?.let(onArrive)
                 }
             },
         )
@@ -114,7 +116,7 @@ private val DestinationCategory.sampleDestination: String
             DestinationCategory.MART -> "이마트 강릉점"
             DestinationCategory.SCHOOL -> "강릉초등학교"
             DestinationCategory.TOURISM -> "경포대"
-            DestinationCategory.RESTAURANT -> "성심당 DCC점"
+            DestinationCategory.FOOD -> "성심당 DCC점"
             DestinationCategory.HOSPITAL -> "강릉아산병원"
         }
 
@@ -123,7 +125,7 @@ private val DestinationCategory.sampleDestination: String
 private fun ArrivalDemoControlsPreview() {
     TripArchiveTheme {
         ArrivalDemoControls(
-            DestinationState("성심당 DCC점", routing = true),
+            DestinationState(current = Destination(1, "성심당 DCC점", 36.0, 127.0), routing = true),
             DestinationDemoInput(
                 destination = androidx.compose.runtime.mutableStateOf(null),
                 enabled = true,

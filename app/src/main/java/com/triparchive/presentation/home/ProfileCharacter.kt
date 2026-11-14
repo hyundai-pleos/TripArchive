@@ -28,7 +28,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.rememberLifecycleOwner
 import com.google.android.filament.Engine
 import com.triparchive.data.character.CharacterLook
-import com.triparchive.data.navigation.DestinationCategory
+import com.triparchive.domain.navigation.DestinationCategory
 import io.github.sceneview.RenderQuality
 import io.github.sceneview.SceneNodeManager
 import io.github.sceneview.SceneView

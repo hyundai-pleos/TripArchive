@@ -1,8 +1,8 @@
 package com.triparchive.presentation.home
 
 import androidx.compose.runtime.State
-import com.triparchive.data.navigation.DestinationCategory
-import com.triparchive.data.navigation.DestinationState
+import com.triparchive.domain.navigation.DestinationCategory
+import com.triparchive.domain.navigation.DestinationState
 
 /** Build-specific destination input used by the demo controls and the adb demo receiver. */
 internal data class DestinationDemoInput(

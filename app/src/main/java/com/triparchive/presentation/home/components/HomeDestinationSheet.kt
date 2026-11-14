@@ -25,7 +25,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.triparchive.core.designsystem.TripArchiveTheme
-import com.triparchive.data.navigation.DestinationCategory
+import com.triparchive.domain.navigation.DestinationCategory
+import com.triparchive.presentation.home.label
 import com.triparchive.presentation.management.ActionButton
 import com.triparchive.presentation.management.Ink
 import com.triparchive.presentation.management.Pink

@@ -15,12 +15,14 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.triparchive.core.designsystem.TripArchiveTheme
-import com.triparchive.data.navigation.DestinationCategory
-import com.triparchive.data.navigation.DestinationState
 import com.triparchive.data.profile.Profile
 import com.triparchive.data.profile.ProfileRelationship
+import com.triparchive.domain.navigation.CategoryLookupStatus
+import com.triparchive.domain.navigation.DestinationCategory
+import com.triparchive.domain.navigation.DestinationState
 import com.triparchive.presentation.LocalDrivingRestricted
 import com.triparchive.presentation.home.DestinationHome
+import com.triparchive.presentation.home.label
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -30,6 +32,15 @@ import org.junit.Test
 class DestinationCategorySelectionTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
+
+    private fun active(name: String): DestinationState =
+        DestinationTestFixtures.active(
+            name,
+            id = name.hashCode().toLong(),
+            categoryStatus = CategoryLookupStatus.SUCCESS,
+        )
+
+    private fun DestinationState.toArrival(): DestinationState = DestinationState(pendingArrival = current)
 
     @Test
     fun eachCategoryCanBeSelectedAndFollowsTheDestinationToArrival() {
@@ -50,7 +61,7 @@ class DestinationCategorySelectionTest {
 
         DestinationCategory.values().forEachIndexed { index, category ->
             val name = "목적지$index"
-            compose.runOnIdle { source.value = DestinationState(name, routing = true) }
+            compose.runOnIdle { source.value = active(name) }
             compose.onNodeWithText("어떤 목적지인가요?").assertIsDisplayed()
             compose.onNodeWithText("확인").assertIsNotEnabled()
             compose.onNodeWithText(category.label).performClick()
@@ -60,11 +71,13 @@ class DestinationCategorySelectionTest {
 
             // A subsequent provider classification must not override the manual choice.
             val otherCategory = DestinationCategory.values().first { it != category }
-            compose.runOnIdle { source.value = source.value.copy(category = otherCategory) }
+            compose.runOnIdle {
+                source.value = source.value.copy(current = source.value.current?.copy(category = otherCategory))
+            }
             compose.runOnIdle { assertEquals(category, displayedCategory) }
             compose.onNodeWithText("어떤 목적지인가요?").assertDoesNotExist()
 
-            compose.runOnIdle { source.value = source.value.arrive(name) }
+            compose.runOnIdle { source.value = source.value.toArrival() }
             compose.onNodeWithText("${name}에 도착했어요!").assertIsDisplayed()
             compose.runOnIdle { assertEquals(category, displayedCategory) }
             compose.onNodeWithText("도착 확인하고 계속하기").performClick()
@@ -73,7 +86,7 @@ class DestinationCategorySelectionTest {
 
     @Test
     fun otherAndTimeoutDoNotAskAgainUntilDestinationChanges() {
-        val source = MutableStateFlow(DestinationState("첫 목적지", routing = true))
+        val source = MutableStateFlow(active("첫 목적지"))
         var displayedCategory: DestinationCategory? = DestinationCategory.MART
         compose.setContent {
             TripArchiveTheme {
@@ -95,7 +108,7 @@ class DestinationCategorySelectionTest {
         compose.mainClock.advanceTimeBy(6000)
         compose.onNodeWithText("어떤 목적지인가요?").assertDoesNotExist()
 
-        compose.runOnIdle { source.value = DestinationState("다른 목적지", routing = true) }
+        compose.runOnIdle { source.value = active("다른 목적지") }
         compose.onNodeWithText("어떤 목적지인가요?").assertIsDisplayed()
         compose.mainClock.advanceTimeBy(5100)
         compose.onNodeWithText("어떤 목적지인가요?").assertDoesNotExist()
@@ -105,8 +118,37 @@ class DestinationCategorySelectionTest {
     }
 
     @Test
+    fun lookupDefersSelectionUntilAnUnclassifiedResult() {
+        val source =
+            MutableStateFlow(
+                active("목적지").let {
+                    it.copy(current = it.current?.copy(categoryStatus = CategoryLookupStatus.LOADING))
+                },
+            )
+        compose.setContent {
+            TripArchiveTheme {
+                DestinationHome(
+                    profile = Profile(1, "준", ProfileRelationship.PARENT),
+                    onProfileClick = {},
+                    onFinish = {},
+                    source = source,
+                    renderCharacter = false,
+                )
+            }
+        }
+        compose.mainClock.advanceTimeBy(6000)
+        compose.onNodeWithText("어떤 목적지인가요?").assertDoesNotExist()
+        compose.runOnIdle {
+            source.value =
+                source.value.copy(current = source.value.current?.copy(categoryStatus = CategoryLookupStatus.FAILURE))
+        }
+        compose.onNodeWithText("어떤 목적지인가요?").assertIsDisplayed()
+        compose.onNodeWithText("5").assertIsDisplayed()
+    }
+
+    @Test
     fun restrictionDefersAndPausesTheCountdown() {
-        val source = MutableStateFlow(DestinationState("목적지", routing = true))
+        val source = MutableStateFlow(active("목적지"))
         var restricted by mutableStateOf(true)
         compose.setContent {
             CompositionLocalProvider(LocalDrivingRestricted provides restricted) {
@@ -140,7 +182,7 @@ class DestinationCategorySelectionTest {
 
     @Test
     fun timerConfirmsSelection() {
-        val source = MutableStateFlow(DestinationState("첫 목적지", routing = true))
+        val source = MutableStateFlow(active("첫 목적지"))
         var displayedCategory: DestinationCategory? = null
         compose.setContent {
             TripArchiveTheme {
@@ -162,7 +204,7 @@ class DestinationCategorySelectionTest {
 
     @Test
     fun providerClassificationArrivalAndCancellationClosePendingDialog() {
-        val source = MutableStateFlow(DestinationState("첫 목적지", routing = true))
+        val source = MutableStateFlow(active("첫 목적지"))
         var displayedCategory: DestinationCategory? = null
         compose.setContent {
             TripArchiveTheme {
@@ -177,26 +219,29 @@ class DestinationCategorySelectionTest {
             }
         }
         compose.onNodeWithText("어떤 목적지인가요?").assertIsDisplayed()
-        compose.runOnIdle { source.value = source.value.copy(category = DestinationCategory.HOSPITAL) }
+        compose.runOnIdle {
+            source.value =
+                source.value.copy(current = source.value.current?.copy(category = DestinationCategory.HOSPITAL))
+        }
         compose.onNodeWithText("어떤 목적지인가요?").assertDoesNotExist()
         compose.runOnIdle { assertEquals(DestinationCategory.HOSPITAL, displayedCategory) }
 
-        compose.runOnIdle { source.value = DestinationState("두 번째 목적지", routing = true) }
+        compose.runOnIdle { source.value = active("두 번째 목적지") }
         compose.onNodeWithText("어떤 목적지인가요?").assertIsDisplayed()
-        compose.runOnIdle { source.value = source.value.arrive("두 번째 목적지") }
+        compose.runOnIdle { source.value = source.value.toArrival() }
         compose.onNodeWithText("어떤 목적지인가요?").assertDoesNotExist()
         compose.onNodeWithText("두 번째 목적지에 도착했어요!").assertIsDisplayed()
         compose.onNodeWithText("도착 확인하고 계속하기").performClick()
 
-        compose.runOnIdle { source.value = DestinationState("세 번째 목적지", routing = true) }
+        compose.runOnIdle { source.value = active("세 번째 목적지") }
         compose.onNodeWithText("어떤 목적지인가요?").assertIsDisplayed()
-        compose.runOnIdle { source.value = source.value.routeChanged(false) }
+        compose.runOnIdle { source.value = DestinationState() }
         compose.onNodeWithText("어떤 목적지인가요?").assertDoesNotExist()
     }
 
     @Test
     fun homeNavigationAndBackgroundPauseTheCountdown() {
-        val source = MutableStateFlow(DestinationState("목적지", routing = true))
+        val source = MutableStateFlow(active("목적지"))
         var homeActive by mutableStateOf(true)
         val owner =
             object : LifecycleOwner {

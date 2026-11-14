@@ -44,9 +44,9 @@ import com.triparchive.R
 import com.triparchive.core.designsystem.TripArchiveTheme
 import com.triparchive.data.character.CharacterLook
 import com.triparchive.data.character.CharacterLookCatalog
-import com.triparchive.data.navigation.DestinationCategory
 import com.triparchive.data.profile.Profile
 import com.triparchive.data.profile.ProfileRelationship
+import com.triparchive.domain.navigation.DestinationCategory
 import com.triparchive.presentation.LocalDrivingRestricted
 
 @Composable

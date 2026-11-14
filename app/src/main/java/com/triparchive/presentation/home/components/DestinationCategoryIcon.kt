@@ -16,7 +16,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.triparchive.R
-import com.triparchive.data.navigation.DestinationCategory
+import com.triparchive.domain.navigation.DestinationCategory
+import com.triparchive.presentation.home.label
 
 @Composable
 internal fun DestinationCategoryIcon(
@@ -110,7 +111,7 @@ internal fun DestinationCategoryIcon(
                 iconLine(0.75f, 0.4f, 0.75f, 0.82f)
             }
 
-            DestinationCategory.RESTAURANT -> {
+            DestinationCategory.FOOD -> {
                 iconLine(0.22f, 0.13f, 0.22f, 0.48f)
                 iconLine(0.12f, 0.13f, 0.12f, 0.31f)
                 iconLine(0.32f, 0.13f, 0.32f, 0.31f)
@@ -154,6 +155,6 @@ private val DestinationCategory.iconColor: Color
             DestinationCategory.MART -> Color(0xFF3182CE)
             DestinationCategory.SCHOOL -> Color(0xFF805AD5)
             DestinationCategory.TOURISM -> Color(0xFFE6A12A)
-            DestinationCategory.RESTAURANT -> Color(0xFFE76F86)
+            DestinationCategory.FOOD -> Color(0xFFE76F86)
             DestinationCategory.HOSPITAL -> Color(0xFF32A47A)
         }

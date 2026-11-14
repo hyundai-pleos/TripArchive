@@ -40,7 +40,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import com.triparchive.R
 import com.triparchive.core.designsystem.TripArchiveTheme
-import com.triparchive.data.navigation.DestinationCategory
+import com.triparchive.domain.navigation.DestinationCategory
 import com.triparchive.presentation.management.Ink
 import com.triparchive.presentation.management.Pink
 
@@ -53,7 +53,7 @@ internal enum class CategoryChoice(
     MART(DestinationCategory.MART, "마트", R.drawable.category_choice_mart),
     SCHOOL(DestinationCategory.SCHOOL, "학교", R.drawable.category_choice_school),
     TOURISM(DestinationCategory.TOURISM, "관광", R.drawable.category_choice_tourism),
-    RESTAURANT(DestinationCategory.RESTAURANT, "음식점", R.drawable.category_choice_restaurant),
+    FOOD(DestinationCategory.FOOD, "음식점", R.drawable.category_choice_restaurant),
     HOSPITAL(DestinationCategory.HOSPITAL, "병원", R.drawable.category_choice_hospital),
     OTHER(null, "기타", R.drawable.category_choice_other),
 }

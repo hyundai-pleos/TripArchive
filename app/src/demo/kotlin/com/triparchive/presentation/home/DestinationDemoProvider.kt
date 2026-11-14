@@ -9,35 +9,94 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
-import com.triparchive.data.navigation.DestinationCategory
-import com.triparchive.data.navigation.DestinationState
+import com.triparchive.domain.navigation.CategoryLookupStatus
+import com.triparchive.domain.navigation.Destination
+import com.triparchive.domain.navigation.DestinationCategory
+import com.triparchive.domain.navigation.DestinationState
 
 private const val ACTION_DESTINATION_INPUT = "com.triparchive.demo.DESTINATION_INPUT"
-private const val EXTRA_NAME = "name"
-private const val EXTRA_CATEGORY = "category"
-private const val EXTRA_ROUTING = "routing"
-private const val EXTRA_ARRIVED = "arrived"
-private const val EXTRA_RESET = "reset"
 
 @Composable
-internal fun rememberDestinationDemoInput(profileId: Long): DestinationDemoInput {
+internal fun rememberDestinationDemoInput(
+    profileId: Long,
+    createVisit: (Destination) -> Destination?,
+): DestinationDemoInput {
     val context = LocalContext.current.applicationContext
     val destination = remember(profileId) { mutableStateOf<DestinationState?>(null) }
-    DisposableEffect(context, destination) {
+    val latestCreateVisit = rememberUpdatedState(createVisit)
+    val input =
+        remember(destination) {
+            DestinationDemoInput(
+                destination = destination,
+                enabled = true,
+                selectDestination = { name, category ->
+                    if (name.isNotBlank()) {
+                        val previous = destination.value ?: DestinationState()
+                        val visit =
+                            previous.current?.takeIf { it.name == name }
+                                ?: latestCreateVisit.value(Destination(0, name, 0.0, 0.0))
+                        if (visit != null) {
+                            destination.value =
+                                previous.copy(
+                                    current =
+                                        visit.copy(
+                                            category = category,
+                                            categoryStatus = CategoryLookupStatus.SUCCESS,
+                                        ),
+                                    routing = true,
+                                )
+                        }
+                    }
+                },
+                cancelRoute = {
+                    destination.value =
+                        destination.value?.copy(current = null, routing = false) ?: DestinationState()
+                },
+                arrive = {
+                    val state = destination.value
+                    if (state?.routing == true && state.current != null) {
+                        destination.value =
+                            state.copy(
+                                current = null,
+                                pendingArrival = state.pendingArrival ?: state.current,
+                                routing = false,
+                            )
+                    }
+                },
+                acknowledge = { destination.value = destination.value?.copy(pendingArrival = null) },
+                reset = { destination.value = null },
+            )
+        }
+    DisposableEffect(context, input) {
         val receiver =
             object : BroadcastReceiver() {
                 override fun onReceive(
                     context: Context?,
                     intent: Intent?,
                 ) {
-                    val demoIntent = intent ?: return
-                    if (demoIntent.action != ACTION_DESTINATION_INPUT) return
-                    if (demoIntent.getBooleanExtra(EXTRA_RESET, false)) {
-                        destination.value = null
+                    val command = intent?.takeIf { it.action == ACTION_DESTINATION_INPUT } ?: return
+                    if (command.getBooleanExtra("reset", false)) {
+                        input.reset()
                         return
                     }
-                    destination.value = demoIntent.toDemoDestinationState(destination.value)
+                    val current = input.destination.value?.current
+                    if (command.hasExtra("name") || command.hasExtra("category")) {
+                        val name = command.getStringExtra("name") ?: current?.name
+                        val category =
+                            if (command.hasExtra("category")) {
+                                command.getStringExtra("category")?.toDestinationCategory()
+                            } else {
+                                current?.category?.takeIf { current.name == name }
+                            }
+                        if (name != null) input.selectDestination(name, category)
+                    }
+                    if (command.getBooleanExtra("arrived", false)) {
+                        input.arrive()
+                    } else if (command.hasExtra("routing") && !command.getBooleanExtra("routing", true)) {
+                        input.cancelRoute()
+                    }
                 }
             }
         val filter = IntentFilter(ACTION_DESTINATION_INPUT)
@@ -49,62 +108,7 @@ internal fun rememberDestinationDemoInput(profileId: Long): DestinationDemoInput
         }
         onDispose { context.unregisterReceiver(receiver) }
     }
-
-    return remember(destination) {
-        DestinationDemoInput(
-            destination = destination,
-            enabled = true,
-            selectDestination = { name, category ->
-                destination.value =
-                    DestinationState()
-                        .routeChanged(true)
-                        .destinationChanged(name, category)
-            },
-            cancelRoute = {
-                destination.value = destination.value?.routeChanged(false) ?: DestinationState()
-            },
-            arrive = {
-                val state = destination.value
-                val name = state?.name
-                if (state?.routing == true && name != null) destination.value = state.arrive(name)
-            },
-            acknowledge = { destination.value = destination.value?.acknowledge() },
-            reset = { destination.value = null },
-        )
-    }
-}
-
-private fun Intent.toDemoDestinationState(previous: DestinationState?): DestinationState {
-    val hasName = hasExtra(EXTRA_NAME)
-    val hasCategory = hasExtra(EXTRA_CATEGORY)
-    val rawName = if (hasName) getStringExtra(EXTRA_NAME) else previous?.name
-    val category =
-        when {
-            hasCategory -> getStringExtra(EXTRA_CATEGORY)?.toDestinationCategory()
-            hasName && rawName != previous?.name -> null
-            else -> previous?.category
-        }
-    var state = previous ?: DestinationState()
-    if (hasName || hasCategory) {
-        state =
-            state.destinationChanged(rawName, category).copy(
-                arrived = null,
-                arrivedCategory = null,
-                arrivedDestinationId = null,
-                routing = true,
-                cancelled = false,
-            )
-    }
-    if (getBooleanExtra(EXTRA_ARRIVED, false)) {
-        return if (state.routing && state.name != null) state.arrive(state.name) else state
-    }
-    if (hasExtra(EXTRA_ROUTING) && !getBooleanExtra(EXTRA_ROUTING, true)) {
-        return state.routeChanged(false)
-    }
-    if (getBooleanExtra(EXTRA_ROUTING, false)) {
-        state = state.routeChanged(true)
-    }
-    return state
+    return input
 }
 
 private fun String.toDestinationCategory(): DestinationCategory? =
@@ -112,7 +116,7 @@ private fun String.toDestinationCategory(): DestinationCategory? =
         "mart" -> DestinationCategory.MART
         "school" -> DestinationCategory.SCHOOL
         "tourism" -> DestinationCategory.TOURISM
-        "restaurant" -> DestinationCategory.RESTAURANT
+        "food", "restaurant" -> DestinationCategory.FOOD
         "hospital" -> DestinationCategory.HOSPITAL
         else -> null
     }

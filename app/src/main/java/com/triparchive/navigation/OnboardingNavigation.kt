@@ -21,7 +21,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -33,10 +32,10 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.triparchive.R
 import com.triparchive.data.character.CharacterLookCatalog
-import com.triparchive.data.navigation.DestinationCategory
 import com.triparchive.data.profile.MAX_PROFILES
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.data.trip.TripSessionStatus
+import com.triparchive.domain.navigation.DestinationCategory
 import com.triparchive.presentation.DrivingUxRestrictionsProvider
 import com.triparchive.presentation.LocalDrivingRestricted
 import com.triparchive.presentation.home.CharacterRenderResources
@@ -131,7 +130,6 @@ private fun OnboardingNavigationContent(
 ) {
     val backStack = rememberNavBackStack(Startup)
     val drivingRestricted = LocalDrivingRestricted.current
-    val applicationContext = LocalContext.current.applicationContext
     val form by viewModel.state.collectAsState()
     val listState by selectionViewModel.state.collectAsState()
     val management by managementViewModel.state.collectAsState()
@@ -291,11 +289,12 @@ private fun OnboardingNavigationContent(
                                         cachedCharacterLook(it, profile.relationship) != null
                                 }
                             if (validSession != null) {
+                                LaunchedEffect(tripSessionViewModel) {
+                                    tripSessionViewModel.startDestinationObservation()
+                                }
                                 DestinationHome(
                                     profile = profile,
                                     categorySelectionState = tripSessionViewModel.categorySelection,
-                                    source = tripSessionViewModel.observeDestination(applicationContext),
-                                    onDemoOverrideChange = tripSessionViewModel::setDemoOverride,
                                     homeActive = backStack.lastOrNull() == home,
                                     onProfileClick = {
                                         if (!drivingRestricted &&
@@ -311,7 +310,9 @@ private fun OnboardingNavigationContent(
                                             backStack.add(VisitMap(profile.id))
                                         }
                                     },
+                                    source = tripSessionViewModel.destination,
                                     onArrival = tripSessionViewModel::recordArrival,
+                                    simulateArrival = tripSessionViewModel::createDemoArrival,
                                     saveTrip = { pendingArrival ->
                                         tripSessionViewModel.save(profile.id, pendingArrival)
                                     },
