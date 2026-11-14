@@ -33,6 +33,8 @@ import com.triparchive.data.character.CharacterLookCatalog
 import com.triparchive.data.profile.MAX_PROFILES
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.data.trip.TripSessionStatus
+import com.triparchive.presentation.DrivingUxRestrictionsProvider
+import com.triparchive.presentation.LocalDrivingRestricted
 import com.triparchive.presentation.home.CharacterRenderResources
 import com.triparchive.presentation.home.DestinationHome
 import com.triparchive.presentation.home.RetainedHomeCharacter
@@ -111,7 +113,20 @@ fun OnboardingNavigation(
     selectionViewModel: ProfileSelectionViewModel = hiltViewModel(),
     managementViewModel: ProfileManagementViewModel = hiltViewModel(),
 ) {
+    DrivingUxRestrictionsProvider {
+        OnboardingNavigationContent(modifier, viewModel, selectionViewModel, managementViewModel)
+    }
+}
+
+@Composable
+private fun OnboardingNavigationContent(
+    modifier: Modifier,
+    viewModel: ProfileViewModel,
+    selectionViewModel: ProfileSelectionViewModel,
+    managementViewModel: ProfileManagementViewModel,
+) {
     val backStack = rememberNavBackStack(Startup)
+    val drivingRestricted = LocalDrivingRestricted.current
     val form by viewModel.state.collectAsState()
     val listState by selectionViewModel.state.collectAsState()
     val management by managementViewModel.state.collectAsState()
@@ -171,7 +186,7 @@ fun OnboardingNavigation(
         ) {
             if (listState == ProfileListState.Error) {
                 Text("프로필을 불러오지 못했어요.")
-                Button(onClick = selectionViewModel::retry) { Text("다시 시도") }
+                Button(onClick = selectionViewModel::retry, enabled = !drivingRestricted) { Text("다시 시도") }
             } else {
                 CircularProgressIndicator()
             }
@@ -185,14 +200,18 @@ fun OnboardingNavigation(
             ProfileRelationship.PARTNER -> "연인"
         }
     val updateRelationship: (String) -> Unit = { label ->
-        when (label) {
-            "부모님" -> viewModel.updateRelationship(ProfileRelationship.PARENT)
-            "아이" -> viewModel.updateRelationship(ProfileRelationship.CHILD)
-            "연인" -> viewModel.updateRelationship(ProfileRelationship.PARTNER)
+        if (!drivingRestricted) {
+            when (label) {
+                "부모님" -> viewModel.updateRelationship(ProfileRelationship.PARENT)
+                "아이" -> viewModel.updateRelationship(ProfileRelationship.CHILD)
+                "연인" -> viewModel.updateRelationship(ProfileRelationship.PARTNER)
+            }
         }
     }
     val addProfile: () -> Unit = {
-        if (profiles.size < MAX_PROFILES && (backStack.lastOrNull() == Profiles || backStack.lastOrNull() == Welcome)) {
+        if (!drivingRestricted && profiles.size < MAX_PROFILES &&
+            (backStack.lastOrNull() == Profiles || backStack.lastOrNull() == Welcome)
+        ) {
             viewModel.startNewProfile()
             backStack.add(Nickname)
         }
@@ -245,7 +264,9 @@ fun OnboardingNavigation(
                         ProfileSelectionScreen(
                             profiles,
                             { id ->
-                                if (backStack.lastOrNull() == Profiles && profiles.any { it.id == id }) {
+                                if (!drivingRestricted && backStack.lastOrNull() == Profiles &&
+                                    profiles.any { it.id == id }
+                                ) {
                                     selectionViewModel.select(id)
                                     backStack.add(Home(id))
                                 }
@@ -267,10 +288,18 @@ fun OnboardingNavigation(
                                 DestinationHome(
                                     profile = profile,
                                     onProfileClick = {
-                                        if (backStack.lastOrNull() == home) backStack.add(ManageProfile(profile.id))
+                                        if (!drivingRestricted &&
+                                            backStack.lastOrNull() == home
+                                        ) {
+                                            backStack.add(ManageProfile(profile.id))
+                                        }
                                     },
                                     onMapClick = {
-                                        if (backStack.lastOrNull() == home) backStack.add(VisitMap(profile.id))
+                                        if (!drivingRestricted &&
+                                            backStack.lastOrNull() == home
+                                        ) {
+                                            backStack.add(VisitMap(profile.id))
+                                        }
                                     },
                                     onArrival = tripSessionViewModel::recordArrival,
                                     saveTrip = { pendingArrival ->
@@ -296,7 +325,16 @@ fun OnboardingNavigation(
                                     verticalArrangement = Arrangement.Center,
                                 ) {
                                     Text(tripSessionErrors.getValue(profile.id))
-                                    Button(onClick = { selectionViewModel.openOrResumeTrip(profile) }) {
+                                    Button(
+                                        onClick = {
+                                            if (!drivingRestricted) {
+                                                selectionViewModel.openOrResumeTrip(
+                                                    profile,
+                                                )
+                                            }
+                                        },
+                                        enabled = !drivingRestricted,
+                                    ) {
                                         Text("다시 시도")
                                     }
                                 }
@@ -315,7 +353,11 @@ fun OnboardingNavigation(
                                 if (backStack.lastOrNull() == route) backStack.removeLastOrNull()
                             },
                             onRecordsClick = {
-                                if (backStack.lastOrNull() == route) backStack.add(Records(route.profileId))
+                                if (!drivingRestricted &&
+                                    backStack.lastOrNull() == route
+                                ) {
+                                    backStack.add(Records(route.profileId))
+                                }
                             },
                         )
                     }
@@ -350,16 +392,16 @@ fun OnboardingNavigation(
                                 error = management.error,
                                 onBack = { if (!management.busy) backStack.removeLastOrNull() },
                                 onEdit = {
-                                    if (!management.busy && backStack.lastOrNull() == route) {
+                                    if (!drivingRestricted && !management.busy && backStack.lastOrNull() == route) {
                                         managementViewModel.startEdit(profile)
                                         backStack.add(EditProfile(profile.id))
                                     }
                                 },
-                                onDelete = managementViewModel::showDelete,
+                                onDelete = { if (!drivingRestricted) managementViewModel.showDelete() },
                                 onCancelDelete = managementViewModel::cancelDelete,
-                                onConfirmDelete = { managementViewModel.delete(profile.id) },
+                                onConfirmDelete = { if (!drivingRestricted) managementViewModel.delete(profile.id) },
                                 onLogout = {
-                                    if (!management.busy) {
+                                    if (!drivingRestricted && !management.busy) {
                                         selectionViewModel.clearSelection()
                                         managementViewModel.reset()
                                         backStack.clear()
@@ -375,15 +417,21 @@ fun OnboardingNavigation(
                             relationship = management.relationship,
                             busy = management.busy,
                             error = management.error,
-                            onNicknameChange = managementViewModel::updateNickname,
-                            onRelationshipChange = managementViewModel::updateRelationship,
+                            onNicknameChange = { if (!drivingRestricted) managementViewModel.updateNickname(it) },
+                            onRelationshipChange = {
+                                if (!drivingRestricted) {
+                                    managementViewModel.updateRelationship(
+                                        it,
+                                    )
+                                }
+                            },
                             onBack = {
                                 if (!management.busy) {
                                     managementViewModel.reset()
                                     backStack.removeLastOrNull()
                                 }
                             },
-                            onSave = { managementViewModel.save(route.profileId) },
+                            onSave = { if (!drivingRestricted) managementViewModel.save(route.profileId) },
                         )
                     }
                     entry<Nickname> {
@@ -391,11 +439,11 @@ fun OnboardingNavigation(
                             false,
                             form.nickname,
                             relationship,
-                            viewModel::updateNickname,
+                            { if (!drivingRestricted) viewModel.updateNickname(it) },
                             updateRelationship,
                             { backStack.removeLastOrNull() },
                             {
-                                if (form.nickname.isNotBlank() &&
+                                if (!drivingRestricted && form.nickname.isNotBlank() &&
                                     backStack.lastOrNull() == Nickname
                                 ) {
                                     backStack.add(Relationship)
@@ -410,10 +458,10 @@ fun OnboardingNavigation(
                             true,
                             form.nickname,
                             relationship,
-                            viewModel::updateNickname,
+                            { if (!drivingRestricted) viewModel.updateNickname(it) },
                             updateRelationship,
                             { backStack.removeLastOrNull() },
-                            viewModel::save,
+                            { if (!drivingRestricted) viewModel.save() },
                             saving = form.saving,
                             saved =
                                 form.savedId != null,
@@ -458,7 +506,9 @@ fun OnboardingNavigation(
                 onDismissRequest = viewModel::dismissMessage,
                 title = { Text("저장 실패") },
                 text = { Text(message) },
-                confirmButton = { TextButton(onClick = viewModel::save) { Text("다시 시도") } },
+                confirmButton = {
+                    TextButton(onClick = viewModel::save, enabled = !drivingRestricted) { Text("다시 시도") }
+                },
                 dismissButton = { TextButton(onClick = viewModel::dismissMessage) { Text("닫기") } },
             )
         }

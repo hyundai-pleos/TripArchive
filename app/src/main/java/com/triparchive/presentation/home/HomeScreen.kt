@@ -46,6 +46,7 @@ import com.triparchive.data.character.CharacterLook
 import com.triparchive.data.character.CharacterLookCatalog
 import com.triparchive.data.profile.Profile
 import com.triparchive.data.profile.ProfileRelationship
+import com.triparchive.presentation.LocalDrivingRestricted
 
 @Composable
 fun HomeScreen(
@@ -57,6 +58,7 @@ fun HomeScreen(
     background: Painter? = painterResource(R.drawable.home_street_background),
     onMapClick: () -> Unit = {},
 ) {
+    val drivingRestricted = LocalDrivingRestricted.current
     BoxWithConstraints(
         modifier
             .fillMaxSize()
@@ -85,6 +87,7 @@ fun HomeScreen(
                     ).clickable(
                         interactionSource = null,
                         indication = null,
+                        enabled = !drivingRestricted,
                         role = Role.Button,
                         onClick = onProfileClick,
                     ),
@@ -111,7 +114,7 @@ fun HomeScreen(
                 Modifier
                     .size((72 * scale).dp)
                     .background(Color(0xFFFF66AF), CircleShape)
-                    .clickable(role = Role.Button, onClick = onMapClick)
+                    .clickable(enabled = !drivingRestricted, role = Role.Button, onClick = onMapClick)
                     .semantics {
                         contentDescription = "지도"
                     },
@@ -123,9 +126,11 @@ fun HomeScreen(
     }
 }
 
+@Composable
 internal fun Modifier.homeBackground(painter: Painter): Modifier =
     background(Brush.verticalGradient(listOf(Color(0xFFC9FFFF), Color.White)))
         .paint(painter, sizeToIntrinsics = false, contentScale = ContentScale.Crop)
+        .movingRoadCenterLine()
 
 @Composable
 internal fun RetainedHomeCharacter(

@@ -51,6 +51,7 @@ import com.triparchive.R
 import com.triparchive.core.designsystem.TripArchiveTheme
 import com.triparchive.data.repository.map.BoundaryRepositoryImpl
 import com.triparchive.domain.map.ObserveMapVisitIntensities
+import com.triparchive.presentation.LocalDrivingRestricted
 import com.triparchive.presentation.management.BackControl
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -65,6 +66,7 @@ internal fun VisitMapScreen(
     onRecordsClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val drivingRestricted = LocalDrivingRestricted.current
     Surface(
         modifier = modifier.fillMaxSize(),
         color = VisitMapPalette.unvisited,
@@ -106,10 +108,12 @@ internal fun VisitMapScreen(
                                 visitIntensities = content.visitIntensities,
                                 viewport = viewport,
                                 onAction = onAction,
+                                interactionsEnabled = !drivingRestricted,
                             )
                             VisitMapControls(
                                 viewport = viewport,
                                 onAction = onAction,
+                                enabled = !drivingRestricted,
                                 scale = scale,
                                 modifier =
                                     Modifier
@@ -146,6 +150,7 @@ internal fun VisitMapScreen(
                             .clickable(
                                 interactionSource = null,
                                 indication = null,
+                                enabled = !drivingRestricted,
                                 role = Role.Button,
                                 onClick = onRecordsClick,
                             ),
@@ -227,7 +232,9 @@ private fun MapAttribution(
     scale: Float,
     modifier: Modifier = Modifier,
 ) {
+    val drivingRestricted = LocalDrivingRestricted.current
     var showAttribution by rememberSaveable { mutableStateOf(false) }
+    val attributionScroll = if (drivingRestricted) Modifier else Modifier.verticalScroll(rememberScrollState())
     Surface(
         modifier = modifier,
         shape = CircleShape,
@@ -251,7 +258,7 @@ private fun MapAttribution(
             title = { Text("지도 출처 및 라이선스") },
             text = {
                 SelectionContainer {
-                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Column(attributionScroll) {
                         Text(
                             "본 데이터는 통계청 통계지리정보서비스(SGIS)에서 공공누리 제1유형으로 개방한 " +
                                 "행정구역 경계를 가공한 것이며(가공: vuski/admdongkor), CC BY 4.0으로 배포됩니다.",

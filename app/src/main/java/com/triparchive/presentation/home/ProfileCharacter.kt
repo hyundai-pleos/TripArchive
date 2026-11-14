@@ -1,8 +1,11 @@
 package com.triparchive.presentation.home
 
+import android.car.Car
 import android.content.pm.PackageManager
 import android.opengl.Matrix
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -13,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
@@ -30,6 +34,7 @@ import io.github.sceneview.SurfaceType
 import io.github.sceneview.loaders.ModelLoader
 import io.github.sceneview.math.Position
 import io.github.sceneview.model.ModelInstance
+import io.github.sceneview.model.getAnimationIndex
 import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberMainLightNode
@@ -48,6 +53,40 @@ internal fun ProfileCharacter(
     if (LocalInspectionMode.current) return
 
     val sharedLoader = LocalCharacterModelLoader.current
+    val context = LocalContext.current
+    var speedPermissionGranted by
+        remember {
+            mutableStateOf(
+                androidx.core.content.ContextCompat
+                    .checkSelfPermission(context, Car.PERMISSION_SPEED) ==
+                    PackageManager.PERMISSION_GRANTED,
+            )
+        }
+    var permissionRequestMade by remember { mutableStateOf(false) }
+    var motionPresentation by remember { mutableStateOf(CharacterMotionPresentation()) }
+    val speedPermissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            speedPermissionGranted = granted
+        }
+    LaunchedEffect(active, motionPresentation.drivingRestricted, speedPermissionGranted, permissionRequestMade) {
+        if (active && !motionPresentation.drivingRestricted && !speedPermissionGranted && !permissionRequestMade) {
+            permissionRequestMade = true
+            speedPermissionLauncher.launch(Car.PERMISSION_SPEED)
+        }
+    }
+    DisposableEffect(context, active, speedPermissionGranted) {
+        if (active) {
+            val monitor = VehicleMotionMonitor(context) { motionPresentation = it }
+            monitor.start()
+            onDispose {
+                monitor.close()
+                motionPresentation = CharacterMotionPresentation()
+            }
+        } else {
+            motionPresentation = CharacterMotionPresentation()
+            onDispose { }
+        }
+    }
     val engine = sharedLoader?.engine ?: rememberCharacterEngine()
     val modelLoader = sharedLoader ?: rememberModelLoader(engine)
     val renderView = rememberView(engine)
@@ -92,6 +131,8 @@ internal fun ProfileCharacter(
                 compositeAssetPath = look.compositeAssetPath,
                 modelLoader = modelLoader,
                 engine = engine,
+                motionPresentation = motionPresentation,
+                animate = active || (prepare && !prepared),
                 onReady = { modelAttached = true },
             )
         } else {
@@ -105,8 +146,7 @@ internal fun ProfileCharacter(
                         val attachment = remember(outfit, accessory) { AccessoryRigBinding() }
                         ModelNode(
                             modelInstance = outfit,
-                            animationName = "Idle",
-                            animationLoop = true,
+                            autoAnimate = false,
                             scaleToUnits = 1f,
                             centerOrigin = Position(0f, 0f, 0f),
                             apply = { attachment.characterNode = this },
@@ -121,6 +161,27 @@ internal fun ProfileCharacter(
                                 onDispose {
                                     attachment.accessoryNode?.parent = null
                                 }
+                            }
+                        }
+                        val latestMotionPresentation by rememberUpdatedState(motionPresentation)
+                        LaunchedEffect(attachment, active, prepare, prepared) {
+                            if (!active && !(prepare && !prepared)) return@LaunchedEffect
+                            val timeline = CharacterAnimationTimeline()
+                            var previousFrameNanos: Long? = null
+                            while (true) {
+                                val frameNanos = withFrameNanos { it }
+                                val deltaSeconds =
+                                    previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f }
+                                        ?: 0f
+                                previousFrameNanos = frameNanos
+                                val presentation = latestMotionPresentation
+                                val frame =
+                                    timeline.advance(
+                                        presentation.animationClip,
+                                        presentation.targetAnimationSpeed,
+                                        deltaSeconds,
+                                    )
+                                applyCharacterAnimationFrame(attachment.characterNode, frame, engine)
                             }
                         }
                         SideEffect { modelAttached = true }
@@ -151,6 +212,8 @@ private fun SceneScope.AdultCompositeCharacter(
     compositeAssetPath: String,
     modelLoader: ModelLoader,
     engine: Engine,
+    motionPresentation: CharacterMotionPresentation,
+    animate: Boolean,
     onReady: () -> Unit,
 ) {
     val base = rememberModelInstance(modelLoader, baseAssetPath)
@@ -159,8 +222,7 @@ private fun SceneScope.AdultCompositeCharacter(
         val binding = remember(composite) { AdultCompositeBinding() }
         ModelNode(
             modelInstance = base,
-            animationName = "Idle",
-            animationLoop = true,
+            autoAnimate = false,
             scaleToUnits = 1f,
             centerOrigin = Position(0f, 0f, 0f),
             apply = {
@@ -188,9 +250,115 @@ private fun SceneScope.AdultCompositeCharacter(
                 }
                 onDispose { }
             }
+            val latestMotionPresentation by rememberUpdatedState(motionPresentation)
+            LaunchedEffect(binding, animate) {
+                if (!animate) return@LaunchedEffect
+                val timeline = CharacterAnimationTimeline()
+                var previousFrameNanos: Long? = null
+                while (true) {
+                    val frameNanos = withFrameNanos { it }
+                    val deltaSeconds =
+                        previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f } ?: 0f
+                    previousFrameNanos = frameNanos
+                    val presentation = latestMotionPresentation
+                    val frame =
+                        timeline.advance(
+                            presentation.animationClip,
+                            presentation.targetAnimationSpeed,
+                            deltaSeconds,
+                        )
+                    applyCharacterAnimationFrame(binding.characterNode, frame, engine)
+                    applyCharacterAnimationFrame(binding.modelNode, frame, engine)
+                }
+            }
         }
         SideEffect(onReady)
     }
+}
+
+private fun applyCharacterAnimationFrame(
+    character: RiggedModelNode?,
+    frame: CharacterAnimationFrame,
+    engine: Engine,
+) {
+    if (character == null) return
+    val animator = character.animator
+    val requestedCurrentIndex = animator.getAnimationIndex(frame.clip.assetName)
+    val currentIndex = requestedCurrentIndex ?: animator.getAnimationIndex("Idle") ?: return
+    val currentClip = if (requestedCurrentIndex == null) CharacterAnimationClip.IDLE else frame.clip
+    animator.applyAnimation(currentIndex, animationTime(animator, currentIndex, frame.clipTimeSeconds))
+    val previousClip = frame.previousClip
+    var previousIndex: Int? = null
+    var resolvedPreviousClip = CharacterAnimationClip.IDLE
+    if (previousClip != null) {
+        val requestedPreviousIndex = animator.getAnimationIndex(previousClip.assetName)
+        previousIndex = requestedPreviousIndex ?: animator.getAnimationIndex("Idle")
+        resolvedPreviousClip = if (requestedPreviousIndex == null) CharacterAnimationClip.IDLE else previousClip
+        if (previousIndex != null) {
+            animator.applyCrossFade(
+                previousIndex,
+                animationTime(animator, previousIndex, frame.previousTimeSeconds),
+                frame.crossFadeAlpha,
+            )
+        }
+    }
+    val currentWave =
+        gaitMorphWave(
+            currentClip,
+            frame.clipTimeSeconds,
+            animator.getAnimationDuration(currentIndex),
+        )
+    val previousWave =
+        if (previousClip != null && previousIndex != null) {
+            gaitMorphWave(
+                resolvedPreviousClip,
+                frame.previousTimeSeconds,
+                animator.getAnimationDuration(previousIndex),
+            )
+        } else {
+            0f
+        }
+    applyGaitMorphWeights(
+        character = character,
+        engine = engine,
+        weights =
+            blendedGaitMorphWeights(
+                currentWave,
+                previousWave,
+                if (previousClip ==
+                    null
+                ) {
+                    1f
+                } else {
+                    frame.crossFadeAlpha
+                },
+            ),
+    )
+    animator.updateBoneMatrices()
+    character.nodes.forEach { it.onWorldTransformChanged() }
+}
+
+private fun applyGaitMorphWeights(
+    character: RiggedModelNode,
+    engine: Engine,
+    weights: FloatArray,
+) {
+    val manager = engine.renderableManager
+    character.modelInstance.entities.forEach { entity ->
+        val renderableInstance = manager.getInstance(entity)
+        if (renderableInstance == 0 || manager.getMorphTargetCount(renderableInstance) != weights.size) return@forEach
+        manager.setMorphWeights(renderableInstance, weights, 0)
+    }
+}
+
+private fun animationTime(
+    animator: com.google.android.filament.gltfio.Animator,
+    index: Int,
+    timeSeconds: Float,
+): Float {
+    val duration = animator.getAnimationDuration(index)
+    if (!duration.isFinite() || duration <= 0f) return 0f
+    return timeSeconds % duration
 }
 
 private fun attachAdultAccessoriesToHead(

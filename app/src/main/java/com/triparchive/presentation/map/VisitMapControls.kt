@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.triparchive.R
 import com.triparchive.core.designsystem.TripArchiveTheme
+import com.triparchive.presentation.LocalDrivingRestricted
 import java.util.Locale
 
 @Composable
@@ -42,6 +43,7 @@ internal fun VisitMapControls(
     onAction: (VisitMapAction) -> Unit,
     modifier: Modifier = Modifier,
     scale: Float = 1f,
+    enabled: Boolean = !LocalDrivingRestricted.current,
 ) {
     val zoom by remember(viewport) { derivedStateOf(structuralEqualityPolicy()) { viewport().zoom } }
     Column(
@@ -60,6 +62,7 @@ internal fun VisitMapControls(
                     onClick = { onAction(VisitMapAction.ZoomIn) },
                     label = "확대",
                     scale = scale,
+                    enabled = enabled,
                 )
                 Box(
                     Modifier
@@ -69,11 +72,12 @@ internal fun VisitMapControls(
                 )
                 ZoomButton(iconRes = R.drawable.map_zoom_out, onClick = {
                     onAction(VisitMapAction.ZoomOut)
-                }, label = "축소", scale = scale)
+                }, label = "축소", scale = scale, enabled = enabled)
             }
         }
         TextButton(
             onClick = { onAction(VisitMapAction.ResetViewport) },
+            enabled = enabled,
             modifier =
                 Modifier
                     .clip(RoundedCornerShape((14 * scale).dp))
@@ -102,9 +106,11 @@ private fun ZoomButton(
     onClick: () -> Unit,
     label: String,
     scale: Float,
+    enabled: Boolean,
 ) {
     TextButton(
         onClick = onClick,
+        enabled = enabled,
         modifier =
             Modifier
                 .size((88 * scale).dp)

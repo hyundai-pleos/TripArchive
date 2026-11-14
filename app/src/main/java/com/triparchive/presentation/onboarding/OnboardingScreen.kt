@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.triparchive.R
 import com.triparchive.core.designsystem.TripArchiveTheme
+import com.triparchive.presentation.LocalDrivingRestricted
 
 private val Pink = Color(0xFFFF66AF)
 private val Ink = Color(0xFF191F28)
@@ -37,6 +38,7 @@ fun OnboardingScreen(
     onStart: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val drivingRestricted = LocalDrivingRestricted.current
     BoxWithConstraints(
         modifier.fillMaxSize().background(Color.White).safeDrawingPadding(),
         contentAlignment = Alignment.Center,
@@ -75,6 +77,7 @@ fun OnboardingScreen(
             Spacer(Modifier.height((32 * scale).dp))
             Button(
                 onClick = onStart,
+                enabled = !drivingRestricted,
                 modifier = Modifier.fillMaxWidth().height((104 * scale).dp),
                 shape =
                     RoundedCornerShape(
