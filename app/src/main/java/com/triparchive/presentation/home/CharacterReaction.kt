@@ -34,7 +34,8 @@ internal class CharacterReactionReducer(
     var speedBand: CharacterReactionSpeedBand = CharacterReactionSpeedBand.STANDARD
         private set
 
-    private var reactionEnteredAtMillis = Long.MIN_VALUE
+    private var lastDisplayChangedAtMillis = Long.MIN_VALUE
+    private var displayedSpeedBand = CharacterReactionSpeedBand.STANDARD
     private var aboveSixtySinceMillis: Long? = null
     private var aboveHundredSinceMillis: Long? = null
     private var joyExpiresAtMillis: Long? = null
@@ -45,10 +46,7 @@ internal class CharacterReactionReducer(
     private var stoppedSinceMillis: Long? = null
     private var currentStopCounted = false
     private var congestionQualified = false
-
-    private var transitionStartMillis = 0L
-    private var transitionFromWeights = weightsFor(initialReaction)
-    private var transitionToWeights = transitionFromWeights.copyOf()
+    private var displayedWeights = weightsFor(initialReaction, displayedSpeedBand)
 
     fun update(
         speedKph: Float?,
@@ -58,32 +56,32 @@ internal class CharacterReactionReducer(
         val speed = speedKph?.takeIf { it.isFinite() && it >= 0f }
         if (speed == null || stationaryInPark) {
             resetCongestion()
-            resetSpeedBand(nowMillis)
+            resetSpeedBand()
             joyExpiresAtMillis = null
-            changeReaction(CharacterReaction.CALM, nowMillis)
-            return frameAt(nowMillis)
+            applyReaction(CharacterReaction.CALM, CharacterReactionSpeedBand.STANDARD, nowMillis)
+            return frameAt()
         }
 
         if (speed <= STOPPED_SPEED_KPH) {
             updateCongestion(speed, nowMillis)
-            resetSpeedBand(nowMillis)
+            resetSpeedBand()
             flowRecoverySinceMillis = null
             joyExpiresAtMillis = null
-            changeReaction(CharacterReaction.CALM, nowMillis)
-            return frameAt(nowMillis)
+            applyReaction(CharacterReaction.CALM, CharacterReactionSpeedBand.STANDARD, nowMillis)
+            return frameAt()
         }
 
         if (reaction == CharacterReaction.WAITING && speed > TRAFFIC_WINDOW_EXIT_KPH &&
             speed < HIGH_SPEED_ENTER_60_KPH
         ) {
             val startedAt = flowRecoverySinceMillis ?: nowMillis.also { flowRecoverySinceMillis = it }
-            if (nowMillis - startedAt < FLOW_RECOVERY_DWELL_MILLIS) return frameAt(nowMillis)
+            if (nowMillis - startedAt < FLOW_RECOVERY_DWELL_MILLIS) return frameAt()
             requestReaction(CharacterReaction.JOY, nowMillis)
             if (reaction == CharacterReaction.JOY) {
                 joyExpiresAtMillis = nowMillis + JOY_DURATION_MILLIS
                 resetCongestion()
             }
-            return frameAt(nowMillis)
+            return frameAt()
         }
 
         flowRecoverySinceMillis = null
@@ -98,12 +96,12 @@ internal class CharacterReactionReducer(
         if (congestionQualified && speed <= TRAFFIC_WINDOW_EXIT_KPH) {
             joyExpiresAtMillis = null
             requestReaction(CharacterReaction.WAITING, nowMillis)
-            return frameAt(nowMillis)
+            return frameAt()
         }
 
         val joyDeadline = joyExpiresAtMillis
         if (reaction == CharacterReaction.JOY && joyDeadline != null && nowMillis < joyDeadline) {
-            return frameAt(nowMillis)
+            return frameAt()
         }
         if (reaction == CharacterReaction.JOY) joyExpiresAtMillis = null
 
@@ -131,7 +129,7 @@ internal class CharacterReactionReducer(
                 }
             }
         requestReaction(desired, nowMillis)
-        return frameAt(nowMillis)
+        return frameAt()
     }
 
     private fun updateCongestion(
@@ -201,69 +199,48 @@ internal class CharacterReactionReducer(
                     CharacterReactionSpeedBand.STANDARD
                 }
             }
-        if (next != speedBand) changeSpeedBand(next, nowMillis)
+        if (next != speedBand) changeSpeedBand(next)
     }
 
     private fun requestReaction(
         target: CharacterReaction,
         nowMillis: Long,
     ) {
-        if (target == reaction) {
-            updateTransitionTarget(nowMillis)
+        val targetSpeedBand =
+            if (target == CharacterReaction.MOVING) speedBand else displayedSpeedBand
+        val targetWeights = weightsFor(target, targetSpeedBand)
+        if (targetWeights.contentEquals(displayedWeights)) {
+            reaction = target
+            displayedSpeedBand = targetSpeedBand
             return
         }
-        if (heldForMillis(reactionEnteredAtMillis, nowMillis) < MIN_REACTION_HOLD_MILLIS) return
-        if (reactionEnteredAtMillis != Long.MIN_VALUE &&
-            nowMillis - transitionStartMillis < MIN_REACTION_HOLD_MILLIS
-        ) {
-            return
-        }
-        changeReaction(target, nowMillis)
+        if (heldForMillis(lastDisplayChangedAtMillis, nowMillis) < MIN_REACTION_HOLD_MILLIS) return
+        applyReaction(target, targetSpeedBand, nowMillis)
     }
 
-    private fun changeReaction(
+    private fun applyReaction(
         next: CharacterReaction,
+        nextSpeedBand: CharacterReactionSpeedBand,
         nowMillis: Long,
     ) {
-        if (next != reaction) {
-            reaction = next
-            reactionEnteredAtMillis = nowMillis
+        reaction = next
+        displayedSpeedBand = nextSpeedBand
+        val nextWeights = weightsFor(reaction, displayedSpeedBand)
+        if (!nextWeights.contentEquals(displayedWeights)) {
+            displayedWeights = nextWeights
+            lastDisplayChangedAtMillis = nowMillis
         }
-        updateTransitionTarget(nowMillis)
     }
 
-    private fun changeSpeedBand(
-        next: CharacterReactionSpeedBand,
-        nowMillis: Long,
-    ) {
+    private fun changeSpeedBand(next: CharacterReactionSpeedBand) {
+        if (next == speedBand) return
         speedBand = next
-        updateTransitionTarget(nowMillis)
     }
 
-    private fun updateTransitionTarget(nowMillis: Long) {
-        val nextWeights = weightsFor(reaction)
-        if (reaction == CharacterReaction.MOVING) {
-            nextWeights[reaction.ordinal] = if (speedBand == CharacterReactionSpeedBand.STANDARD) 0.3f else 1f
-        }
-        if (nextWeights.contentEquals(transitionToWeights)) return
-        if (reaction == CharacterReaction.MOVING &&
-            transitionToWeights[CharacterReaction.MOVING.ordinal] > 0f &&
-            nowMillis - transitionStartMillis < MIN_REACTION_HOLD_MILLIS
-        ) {
-            return
-        }
-        transitionFromWeights = interpolatedWeights(nowMillis)
-        transitionToWeights = nextWeights
-        transitionStartMillis = nowMillis
-    }
-
-    private fun resetSpeedBand(nowMillis: Long) {
+    private fun resetSpeedBand() {
         aboveSixtySinceMillis = null
         aboveHundredSinceMillis = null
-        if (speedBand != CharacterReactionSpeedBand.STANDARD) {
-            speedBand = CharacterReactionSpeedBand.STANDARD
-            updateTransitionTarget(nowMillis)
-        }
+        changeSpeedBand(CharacterReactionSpeedBand.STANDARD)
     }
 
     private fun resetCongestion() {
@@ -275,17 +252,8 @@ internal class CharacterReactionReducer(
         flowRecoverySinceMillis = null
     }
 
-    private fun frameAt(nowMillis: Long): CharacterReactionFrame =
-        CharacterReactionFrame(reaction, speedBand, interpolatedWeights(nowMillis))
-
-    private fun interpolatedWeights(nowMillis: Long): FloatArray {
-        val progress =
-            ((nowMillis - transitionStartMillis).toFloat() / FACE_TRANSITION_MILLIS)
-                .coerceIn(0f, 1f)
-        return FloatArray(REACTION_COUNT) { index ->
-            transitionFromWeights[index] + (transitionToWeights[index] - transitionFromWeights[index]) * progress
-        }
-    }
+    private fun frameAt(): CharacterReactionFrame =
+        CharacterReactionFrame(reaction, speedBand, displayedWeights.copyOf())
 
     private fun heldForMillis(
         sinceMillis: Long,
@@ -307,17 +275,19 @@ internal class CharacterReactionReducer(
         const val HIGH_SPEED_ENTRY_DWELL_MILLIS = 3_000L
         const val MIN_REACTION_HOLD_MILLIS = 5_000L
         const val FLOW_RECOVERY_DWELL_MILLIS = 2_000L
-        const val FACE_TRANSITION_MILLIS = 650f
         const val JOY_DURATION_MILLIS = 5_000L
 
-        fun weightsFor(reaction: CharacterReaction): FloatArray {
+        fun weightsFor(
+            reaction: CharacterReaction,
+            speedBand: CharacterReactionSpeedBand,
+        ): FloatArray {
             val weights = FloatArray(REACTION_COUNT)
             val weight =
                 when (reaction) {
                     CharacterReaction.CALM -> 0f
-                    CharacterReaction.WAITING -> 0.82f
+                    CharacterReaction.WAITING -> 1f
                     CharacterReaction.JOY -> 1f
-                    CharacterReaction.MOVING -> 0.3f
+                    CharacterReaction.MOVING -> if (speedBand == CharacterReactionSpeedBand.STANDARD) 0.3f else 1f
                     CharacterReaction.WIND -> 1f
                 }
             weights[reaction.ordinal] = weight

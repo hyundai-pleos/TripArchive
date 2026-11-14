@@ -31,7 +31,9 @@ class CharacterReactionReducerTest {
         assertEquals(CharacterReaction.CALM, reducer.update(0f, 26_000L).reaction)
         assertEquals(CharacterReaction.CALM, reducer.update(0f, 35_999L).reaction)
         assertEquals(CharacterReaction.CALM, reducer.update(0f, 36_000L).reaction)
-        assertEquals(CharacterReaction.WAITING, reducer.update(10f, 36_001L).reaction)
+        val waiting = reducer.update(10f, 36_001L)
+        assertEquals(CharacterReaction.WAITING, waiting.reaction)
+        assertEquals(1f, waiting.morphWeights[CharacterReaction.WAITING.ordinal], 0.001f)
     }
 
     @Test
@@ -87,18 +89,18 @@ class CharacterReactionReducerTest {
     }
 
     @Test
-    fun transitionsBlendFiveSemanticFaceTargetsOverSixHundredFiftyMilliseconds() {
+    fun expressionTargetsApplyImmediatelyWithoutBlending() {
         val reducer = CharacterReactionReducer()
 
-        val atStart = reducer.update(40f, 0L)
-        assertEquals(5, atStart.morphWeights.size)
-        assertEquals(0f, atStart.morphWeights[CharacterReaction.MOVING.ordinal], 0.001f)
-
-        val halfway = reducer.update(40f, 325L)
-        assertTrue(halfway.morphWeights[CharacterReaction.MOVING.ordinal] in 0.14f..0.16f)
-        val complete = reducer.update(40f, 650L)
-        assertEquals(0.3f, complete.morphWeights[CharacterReaction.MOVING.ordinal], 0.001f)
-        assertEquals(0f, complete.morphWeights[CharacterReaction.CALM.ordinal], 0.001f)
+        val firstMovingFrame = reducer.update(40f, 0L)
+        assertEquals(5, firstMovingFrame.morphWeights.size)
+        assertEquals(CharacterReaction.MOVING, firstMovingFrame.reaction)
+        assertEquals(0.3f, firstMovingFrame.morphWeights[CharacterReaction.MOVING.ordinal], 0.001f)
+        assertEquals(0f, firstMovingFrame.morphWeights[CharacterReaction.CALM.ordinal], 0.001f)
+        assertEquals(
+            firstMovingFrame.morphWeights.toList(),
+            reducer.update(40f, 100L).morphWeights.toList(),
+        )
     }
 
     @Test
@@ -146,31 +148,31 @@ class CharacterReactionReducerTest {
     }
 
     @Test
-    fun sixtyBandBlendsToDistinctMovingFaceAndBackWithoutChangingReaction() {
+    fun sixtyBandChangesMovingWeightImmediatelyAfterFiveSecondDisplayHold() {
         val reducer = CharacterReactionReducer()
         reducer.update(40f, 0L)
         reducer.update(65f, 1000L)
         val entry = reducer.update(65f, 4000L)
         assertEquals(CharacterReaction.MOVING, entry.reaction)
         assertEquals(0.3f, entry.morphWeights[CharacterReaction.MOVING.ordinal], 0.001f)
-        assertEquals(0.3f, reducer.update(65f, 4650L).morphWeights[CharacterReaction.MOVING.ordinal], 0.001f)
-        reducer.update(65f, 5000L)
-        assertEquals(1f, reducer.update(65f, 5650L).morphWeights[CharacterReaction.MOVING.ordinal], 0.001f)
+        assertEquals(0.3f, reducer.update(65f, 4999L).morphWeights[CharacterReaction.MOVING.ordinal], 0.001f)
+        assertEquals(1f, reducer.update(65f, 5000L).morphWeights[CharacterReaction.MOVING.ordinal], 0.001f)
         reducer.update(55f, 6000L)
-        assertEquals(1f, reducer.update(55f, 6650L).morphWeights[CharacterReaction.MOVING.ordinal], 0.001f)
-        reducer.update(55f, 10000L)
-        assertEquals(0.3f, reducer.update(55f, 10650L).morphWeights[CharacterReaction.MOVING.ordinal], 0.001f)
+        assertEquals(1f, reducer.update(55f, 9999L).morphWeights[CharacterReaction.MOVING.ordinal], 0.001f)
+        assertEquals(0.3f, reducer.update(55f, 10000L).morphWeights[CharacterReaction.MOVING.ordinal], 0.001f)
     }
 
     @Test
-    fun windWaitsFiveSecondsAfterMovingIntensityChangedButStopOverrides() {
+    fun windWaitsFiveSecondsAfterMovingWeightChangedButStopOverridesImmediately() {
         val reducer = CharacterReactionReducer()
         reducer.update(40f, 0L)
         reducer.update(65f, 1000L)
-        reducer.update(65f, 4000L)
-        reducer.update(105f, 5000L)
-        assertEquals(CharacterReaction.MOVING, reducer.update(105f, 8000L).reaction)
+        assertEquals(0.3f, reducer.update(65f, 4000L).morphWeights[CharacterReaction.MOVING.ordinal], 0.001f)
+        assertEquals(1f, reducer.update(65f, 5000L).morphWeights[CharacterReaction.MOVING.ordinal], 0.001f)
+        reducer.update(105f, 6000L)
+        assertEquals(CharacterReaction.MOVING, reducer.update(105f, 8999L).reaction)
         assertEquals(CharacterReaction.WIND, reducer.update(105f, 10000L).reaction)
         assertEquals(CharacterReaction.CALM, reducer.update(0f, 10001L).reaction)
+        assertTrue(reducer.update(0f, 10001L).morphWeights.all { it == 0f })
     }
 }
