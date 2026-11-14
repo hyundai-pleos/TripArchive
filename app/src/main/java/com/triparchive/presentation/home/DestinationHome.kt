@@ -204,13 +204,6 @@ internal fun DestinationHome(
             destinationCategories = acquiredProps,
             drawBackground = drawBackground,
         )
-        CategoryLookupIndicator(
-            effectiveDestination.copy(
-                current = currentDestination,
-                pendingArrival = effectiveDestination.pendingArrival?.let(selection::apply),
-            ),
-            Modifier.align(Alignment.TopCenter).padding(top = 12.dp),
-        )
         HomeDestinationSheet(
             nickname = profile.nickname,
             category = destinationCategory,

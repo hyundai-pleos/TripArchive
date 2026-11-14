@@ -82,15 +82,22 @@ class DestinationHomeTest {
     }
 
     @Test
-    fun categoryLookupShowsLoadingSuccessAndFailure() {
+    fun categoryLookupDoesNotExposeTemporaryStatusOrApiErrors() {
         val state =
-            MutableStateFlow(DestinationTestFixtures.active("서울역", categoryStatus = CategoryLookupStatus.LOADING))
+            MutableStateFlow(DestinationState())
         compose.setContent {
             TripArchiveTheme {
                 DestinationHome(Profile(1, "준", ProfileRelationship.PARENT), {}, {}, state, renderCharacter = false)
             }
         }
-        compose.onNodeWithText("[임시] 카테고리 조회 중").assertIsDisplayed()
+        compose.onNodeWithTag("category-lookup-status").assertDoesNotExist()
+        compose.onNodeWithText("[임시] 목적지 대기 중").assertDoesNotExist()
+        compose.runOnIdle {
+            state.value = DestinationTestFixtures.active("서울역", categoryStatus = CategoryLookupStatus.LOADING)
+        }
+        compose.onNodeWithText("서울역").assertIsDisplayed()
+        compose.onNodeWithTag("category-lookup-status").assertDoesNotExist()
+        compose.onNodeWithText("[임시] 카테고리 조회 중").assertDoesNotExist()
         compose.runOnIdle {
             state.value =
                 state.value.copy(
@@ -101,8 +108,9 @@ class DestinationHomeTest {
                         ),
                 )
         }
-        compose.onNodeWithText("[임시] 카테고리 조회 성공").assertIsDisplayed()
-        compose.onNodeWithText("분류: 음식점").assertIsDisplayed()
+        compose.onNodeWithTag("category-lookup-status").assertDoesNotExist()
+        compose.onNodeWithText("[임시] 카테고리 조회 성공").assertDoesNotExist()
+        compose.onNodeWithText("분류: 음식점").assertDoesNotExist()
         compose.runOnIdle {
             state.value =
                 state.value.copy(
@@ -113,8 +121,9 @@ class DestinationHomeTest {
                         ),
                 )
         }
-        compose.onNodeWithText("[임시] 카테고리 조회 실패 (무작위 배정)").assertIsDisplayed()
-        compose.onNodeWithText("카카오 API 응답 오류 (401)").assertIsDisplayed()
+        compose.onNodeWithTag("category-lookup-status").assertDoesNotExist()
+        compose.onNodeWithText("[임시] 카테고리 조회 실패").assertDoesNotExist()
+        compose.onNodeWithText("카카오 API 응답 오류 (401)").assertDoesNotExist()
     }
 
     @Test
