@@ -48,13 +48,11 @@ object CharacterLookCatalog {
             ProfileRelationship.PARTNER to
                 CharacterAssets(
                     folder = "adult",
-                    baseAssetPath = "characters/adult_wardrobe.glb",
-                    compositeAssetPath = "characters/catalog/adult/adult_composite.glb",
                     outfits =
                         listOf(
-                            Outfit("couple_1", "heart_hoodie"),
-                            Outfit("couple_2", "cream_knit"),
-                            Outfit("couple_4", "lavender_jacket"),
+                            Outfit("couple_1", "couple_1"),
+                            Outfit("couple_2", "couple_2"),
+                            Outfit("couple_4", "couple_4"),
                         ),
                     accessories =
                         listOf(
