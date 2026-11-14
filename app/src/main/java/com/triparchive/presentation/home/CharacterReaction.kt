@@ -209,9 +209,15 @@ internal class CharacterReactionReducer(
         nowMillis: Long,
     ) {
         if (target == reaction) {
+            updateTransitionTarget(nowMillis)
             return
         }
         if (heldForMillis(reactionEnteredAtMillis, nowMillis) < MIN_REACTION_HOLD_MILLIS) return
+        if (reactionEnteredAtMillis != Long.MIN_VALUE &&
+            nowMillis - transitionStartMillis < MIN_REACTION_HOLD_MILLIS
+        ) {
+            return
+        }
         changeReaction(target, nowMillis)
     }
 
@@ -240,6 +246,12 @@ internal class CharacterReactionReducer(
             nextWeights[reaction.ordinal] = if (speedBand == CharacterReactionSpeedBand.STANDARD) 0.3f else 1f
         }
         if (nextWeights.contentEquals(transitionToWeights)) return
+        if (reaction == CharacterReaction.MOVING &&
+            transitionToWeights[CharacterReaction.MOVING.ordinal] > 0f &&
+            nowMillis - transitionStartMillis < MIN_REACTION_HOLD_MILLIS
+        ) {
+            return
+        }
         transitionFromWeights = interpolatedWeights(nowMillis)
         transitionToWeights = nextWeights
         transitionStartMillis = nowMillis
