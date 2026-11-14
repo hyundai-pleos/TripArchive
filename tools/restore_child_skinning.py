@@ -111,12 +111,15 @@ def source_tree(rig, node):
     return WeightTree(samples)
 
 
-def build(outfit, rig_root):
+def build(outfit, rig_root, visual_root=None):
     destination = ASSET_ROOT / f"catalog/child/outfits/family_{outfit}.glb"
     relative = destination.relative_to(ROOT).as_posix()
     original_path = ROOT / f".state/rig-transfer/original_{outfit}.glb"
     original_path.parent.mkdir(parents=True, exist_ok=True)
-    original_path.write_bytes(subprocess.check_output(["git", "show", f"{SOURCE_REVISION}:{relative}"], cwd=ROOT))
+    if visual_root is None:
+        original_path.write_bytes(subprocess.check_output(["git", "show", f"{SOURCE_REVISION}:{relative}"], cwd=ROOT))
+    else:
+        shutil.copyfile(visual_root / f"family_{outfit}.glb", original_path)
     original = Glb(original_path)
     target = Glb(original_path)
     # Derive motion from the existing child rig, never from a modified mesh.
@@ -230,7 +233,7 @@ def build(outfit, rig_root):
             target.doc["accessors"].append({"bufferView": view, "componentType": 5121, "count": len(js) // 4, "type": "VEC4"})
             primitive["attributes"]["JOINTS_0"] = joint_accessor
             primitive["attributes"]["WEIGHTS_0"] = target.append_accessor(ws, "VEC4", 4)
-    target.doc.setdefault("asset", {}).setdefault("extras", {})["childSurfaceSkinning"] = {"visualSource": SOURCE_REVISION, "rigSource": "original child mobile rig", "method": "four nearest source skin samples; shared distal forearm for authored hand/cuff"}
+    target.doc.setdefault("asset", {}).setdefault("extras", {})["childSurfaceSkinning"] = {"visualSource": str(visual_root) if visual_root else SOURCE_REVISION, "rigSource": "original child mobile rig", "method": "four nearest source skin samples; shared distal forearm for authored hand/cuff"}
     # No existing bytes were altered. This covers all original geometry,
     # normals, UVs, material images, indices and their exact accessor bounds.
     assert bytes(target.binary[:len(original_binary)]) == original_binary
@@ -247,6 +250,8 @@ def build(outfit, rig_root):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rig-root", type=Path, required=True, help="Original HYDAI_FINAL/mobile/child directory")
+    parser.add_argument("--visual-root", type=Path, help="Prepared unskinned family_N.glb surfaces")
+    parser.add_argument("--outfits", type=int, nargs="+", default=[1, 3, 4])
     args = parser.parse_args()
-    for outfit in (1, 3, 4):
-        build(outfit, args.rig_root)
+    for outfit in args.outfits:
+        build(outfit, args.rig_root, args.visual_root)
