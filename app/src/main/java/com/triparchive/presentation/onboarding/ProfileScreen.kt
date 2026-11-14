@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import com.triparchive.R
 import com.triparchive.core.designsystem.Pretendard
 import com.triparchive.core.designsystem.TripArchiveTheme
+import com.triparchive.presentation.LocalDrivingRestricted
 
 private val ProfilePink = Color(0xFFFF66AF)
 
@@ -56,6 +57,7 @@ fun ProfileScreen(
     saving: Boolean = false,
     saved: Boolean = false,
 ) {
+    val drivingRestricted = LocalDrivingRestricted.current
     BoxWithConstraints(
         Modifier.fillMaxSize().background(Color.White).safeDrawingPadding(),
         contentAlignment = Alignment.Center,
@@ -110,7 +112,7 @@ fun ProfileScreen(
                                     RoundedCornerShape((20 * s).dp),
                                 ).selectable(
                                     relationship == label,
-                                    enabled = !saving && !saved,
+                                    enabled = !saving && !saved && !drivingRestricted,
                                     interactionSource = null,
                                     indication = null,
                                     role = Role.RadioButton,
@@ -153,7 +155,7 @@ fun ProfileScreen(
                 ) {
                     BasicTextField(
                         value = nickname,
-                        readOnly = saving || saved,
+                        readOnly = saving || saved || drivingRestricted,
                         onValueChange = onNicknameChange,
                         singleLine = true,
                         modifier = Modifier.weight(1f).semantics { contentDescription = "닉네임 입력" },
@@ -169,7 +171,7 @@ fun ProfileScreen(
                                 color = Color(0xFF191F28),
                             ),
                     )
-                    IconButton(onClick = { onNicknameChange("") }, enabled = !saving && !saved) {
+                    IconButton(onClick = { onNicknameChange("") }, enabled = !saving && !saved && !drivingRestricted) {
                         Box(
                             Modifier.size((28 * s).dp).background(Color(0xFFE5E8EB), CircleShape),
                             contentAlignment = Alignment.Center,
@@ -183,7 +185,7 @@ fun ProfileScreen(
             Button(
                 onClick = onNext,
                 enabled =
-                    !saving && !(relationshipStep && saved) && nickname.isNotBlank() &&
+                    !drivingRestricted && !saving && !(relationshipStep && saved) && nickname.isNotBlank() &&
                         (!relationshipStep || relationship.isNotBlank()),
                 modifier = Modifier.fillMaxWidth().height((96 * s).dp),
                 shape = RoundedCornerShape((16 * s).dp),

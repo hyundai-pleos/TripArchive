@@ -51,6 +51,7 @@ import com.triparchive.R
 import com.triparchive.core.designsystem.TripArchiveTheme
 import com.triparchive.data.repository.map.BoundaryRepositoryImpl
 import com.triparchive.domain.map.ObserveMapVisitIntensities
+import com.triparchive.presentation.LocalDrivingRestricted
 import com.triparchive.presentation.management.BackControl
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -65,6 +66,7 @@ internal fun VisitMapScreen(
     onRecordsClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val drivingRestricted = LocalDrivingRestricted.current
     Surface(
         modifier = modifier.fillMaxSize(),
         color = VisitMapPalette.unvisited,
@@ -106,10 +108,12 @@ internal fun VisitMapScreen(
                                 visitIntensities = content.visitIntensities,
                                 viewport = viewport,
                                 onAction = onAction,
+                                interactionsEnabled = !drivingRestricted,
                             )
                             VisitMapControls(
                                 viewport = viewport,
                                 onAction = onAction,
+                                enabled = !drivingRestricted,
                                 scale = scale,
                                 modifier =
                                     Modifier
@@ -146,6 +150,7 @@ internal fun VisitMapScreen(
                             .clickable(
                                 interactionSource = null,
                                 indication = null,
+                                enabled = !drivingRestricted,
                                 role = Role.Button,
                                 onClick = onRecordsClick,
                             ),
