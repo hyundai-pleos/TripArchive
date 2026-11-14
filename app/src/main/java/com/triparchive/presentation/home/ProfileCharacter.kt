@@ -4,6 +4,8 @@ import android.car.Car
 import android.content.pm.PackageManager
 import android.opengl.Matrix
 import android.os.Build
+import android.os.SystemClock
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
@@ -282,9 +284,12 @@ private fun rememberCharacterNode(
         }
         SideEffect(onReady)
         val latestMotionPresentation by rememberUpdatedState(motionPresentation)
+        val reactionBinding = remember(engine, modelNode) { CharacterReactionBinding(engine, modelNode) }
         LaunchedEffect(binding, animate) {
             if (!animate) return@LaunchedEffect
             val timeline = CharacterAnimationTimeline()
+            val reactions = CharacterReactionReducer()
+            var lastReaction: Pair<CharacterReaction, CharacterReactionSpeedBand>? = null
             var previousFrameNanos: Long? = null
             while (true) {
                 val frameNanos = withFrameNanos { it }
@@ -300,6 +305,21 @@ private fun rememberCharacterNode(
                     )
                 applyCharacterAnimationFrame(binding.characterNode, frame, engine)
                 applyCharacterAnimationFrame(binding.modelNode, frame, engine)
+                val reactionFrame =
+                    reactions.update(
+                        presentation.speedKph,
+                        SystemClock.elapsedRealtime(),
+                        presentation.stationaryInPark,
+                    )
+                reactionBinding.apply(reactionFrame)
+                val state = reactionFrame.reaction to reactionFrame.speedBand
+                if (state != lastReaction) {
+                    Log.i(
+                        "CharacterReaction",
+                        "look=${look.id} reaction=${state.first} band=${state.second} speed=${presentation.speedKph}",
+                    )
+                    lastReaction = state
+                }
             }
         }
         return characterNode
@@ -342,9 +362,12 @@ private fun rememberCharacterNode(
         onReady()
     }
     val latestMotionPresentation by rememberUpdatedState(motionPresentation)
+    val reactionBinding = remember(engine, outfitNode) { CharacterReactionBinding(engine, outfitNode) }
     LaunchedEffect(attachment, animate) {
         if (!animate) return@LaunchedEffect
         val timeline = CharacterAnimationTimeline()
+        val reactions = CharacterReactionReducer()
+        var lastReaction: Pair<CharacterReaction, CharacterReactionSpeedBand>? = null
         var previousFrameNanos: Long? = null
         while (true) {
             val frameNanos = withFrameNanos { it }
@@ -359,6 +382,21 @@ private fun rememberCharacterNode(
                     deltaSeconds,
                 )
             applyCharacterAnimationFrame(attachment.characterNode, frame, engine)
+            val reactionFrame =
+                reactions.update(
+                    presentation.speedKph,
+                    SystemClock.elapsedRealtime(),
+                    presentation.stationaryInPark,
+                )
+            reactionBinding.apply(reactionFrame)
+            val state = reactionFrame.reaction to reactionFrame.speedBand
+            if (state != lastReaction) {
+                Log.i(
+                    "CharacterReaction",
+                    "look=${look.id} reaction=${state.first} band=${state.second} speed=${presentation.speedKph}",
+                )
+                lastReaction = state
+            }
         }
     }
     return outfitNode
@@ -441,6 +479,8 @@ private fun applyGaitMorphWeights(
     character.modelInstance.entities.forEach { entity ->
         val renderableInstance = manager.getInstance(entity)
         if (renderableInstance == 0 || manager.getMorphTargetCount(renderableInstance) != weights.size) return@forEach
+        val targetNames = character.model.getMorphTargetNames(entity)
+        if (!targetNames.contentEquals(arrayOf("arm_left", "arm_right", "leg_left", "leg_right"))) return@forEach
         manager.setMorphWeights(renderableInstance, weights, 0)
     }
 }
