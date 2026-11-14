@@ -289,6 +289,7 @@ def gait_effect(
     role: str,
 ) -> tuple[tuple[float, float, float], float]:
     adult = role == "adult"
+    lift = 0.0
     if target.startswith("arm_"):
         side = -1.0 if target.endswith("left") else 1.0
         shoulder_x = 0.18 if adult else 0.16
@@ -298,7 +299,8 @@ def gait_effect(
         low, high = ((0.30, 1.12) if adult else (0.20, 0.79))
         mask *= smoothstep(low, low + 0.08, p[1]) * (1.0 - smoothstep(high - 0.09, high, p[1]))
         pivot = (side * shoulder_x, shoulder_y, 0.0)
-        angle = (0.28 if adult else 0.30) * side
+        # The runtime weights already reverse the right side.
+        angle = 0.28 if adult else 0.30
     else:
         side = -1.0 if target.endswith("left") else 1.0
         hip_x = 0.10 if adult else 0.095
@@ -308,12 +310,13 @@ def gait_effect(
         fade_start, fade_end = ((0.47, 0.63) if adult else (0.28, 0.43))
         mask *= 1.0 - smoothstep(fade_start, fade_end, p[1])
         pivot = (side * hip_x, hip_y, 0.0)
-        angle = -(0.27 if adult else 0.30) * side
+        angle = -(0.27 if adult else 0.30)
+        lift = (0.030 if adult else 0.022) * mask * smoothstep(0.0, hip_y, hip_y - p[1])
     if mask < 1e-5:
         return (0.0, 0.0, 0.0), 0.0
     applied_angle = angle * mask
     moved = axis_rotate_x(p, pivot, applied_angle)
-    return (moved[0] - p[0], moved[1] - p[1], moved[2] - p[2]), applied_angle
+    return (moved[0] - p[0], moved[1] - p[1] + lift, moved[2] - p[2]), applied_angle
 
 
 def quaternion_for_sway(phase: float, strength: float) -> list[float]:
@@ -709,25 +712,25 @@ def add_parent_run(path: Path) -> None:
             # Preserve the authored shoulder axis while increasing the swing
             # from the ~10 degree walk arc to a clear, restrained run arc.
             run_values = keep_quaternion_hemisphere(
-                [amplify_from_rest(rest, value, 2.2) for value in source_values]
+                [amplify_from_rest(rest, value, 1.7) for value in source_values]
             )
         elif "thigh" in node_name:
-            # Increase the hip swing to about 29 degrees at the stride peak.
+            # Increase the hip swing to about 25 degrees at the stride peak.
             run_values = keep_quaternion_hemisphere(
-                [amplify_from_rest(rest, value, 1.85) for value in source_values]
+                [amplify_from_rest(rest, value, 1.6) for value in source_values]
             )
         elif "forearm" in node_name:
             # A gentle elbow bend keeps the arm in a running position.
             run_values = keep_quaternion_hemisphere([bend_x(value, 0.32) for value in source_values])
         elif "shin" in node_name:
-            # Alternate a 24 degree knee tuck with the lifted leg. The root
-            # stays fixed; this is articulation at the existing shin pivots.
-            is_left = node_name.endswith(".L")
-            run_values = []
-            for index in range(SAMPLE_COUNT):
-                phase = 2.0 * math.pi * index / (SAMPLE_COUNT - 1)
-                flex = max(0.0, math.sin(phase) if is_left else -math.sin(phase)) * 0.42
-                run_values.append(bend_x(rest, flex))
+            # Contact, load, swing and extension. The opposite knee is
+            # half a cycle later; peak flex trails the start of swing.
+            knee_keys = (0.04, 0.15, 0.38, 0.26, 0.08, 0.04, 0.06, 0.10)
+            offset = 0 if node_name.endswith(".L") else 4
+            run_values = [
+                bend_x(rest, knee_keys[(index + offset) % len(knee_keys)])
+                for index in range(SAMPLE_COUNT)
+            ]
             samplers[sampler_index]["input"] = phase_input
             samplers[sampler_index]["interpolation"] = "LINEAR"
         else:
