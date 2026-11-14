@@ -29,8 +29,10 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.triparchive.R
+import com.triparchive.data.character.CharacterLookCatalog
 import com.triparchive.data.profile.MAX_PROFILES
 import com.triparchive.data.profile.ProfileRelationship
+import com.triparchive.data.trip.TripSessionStatus
 import com.triparchive.presentation.home.CharacterRenderResources
 import com.triparchive.presentation.home.DestinationHome
 import com.triparchive.presentation.home.RetainedHomeCharacter
@@ -113,6 +115,8 @@ fun OnboardingNavigation(
     val form by viewModel.state.collectAsState()
     val listState by selectionViewModel.state.collectAsState()
     val management by managementViewModel.state.collectAsState()
+    val tripSessions by selectionViewModel.tripSessions.collectAsState()
+    val tripSessionErrors by selectionViewModel.tripSessionErrors.collectAsState()
     LaunchedEffect(managementViewModel) {
         managementViewModel.events.collect { event ->
             when (event) {
@@ -194,6 +198,10 @@ fun OnboardingNavigation(
         }
     }
     val currentRoute = backStack.lastOrNull()
+    val homeProfileId = (currentRoute as? Home)?.profileId
+    LaunchedEffect(homeProfileId, profiles) {
+        profiles.firstOrNull { it.id == homeProfileId }?.let(selectionViewModel::openOrResumeTrip)
+    }
     val onProfileList = currentRoute == Profiles
     val inProfileFlow = Profiles in backStack
     val homeBackground = if (inProfileFlow) painterResource(R.drawable.home_street_background) else null
@@ -247,28 +255,60 @@ fun OnboardingNavigation(
                     }
                     entry<Home>(metadata = instantTransitionMetadata) { home ->
                         profiles.firstOrNull { it.id == home.profileId }?.let { profile ->
-                            val tripSession: TripSessionViewModel = hiltViewModel()
-                            DestinationHome(
-                                profile = profile,
-                                onProfileClick = {
-                                    if (backStack.lastOrNull() == home) backStack.add(ManageProfile(profile.id))
-                                },
-                                onMapClick = {
-                                    if (backStack.lastOrNull() == home) backStack.add(VisitMap(profile.id))
-                                },
-                                source = tripSession.destination,
-                                onArrival = tripSession::recordArrival,
-                                simulateArrival = tripSession::createDemoArrival,
-                                saveTrip = { pending -> tripSession.save(profile.id, pending) },
-                                onFinish = {
-                                    if (backStack.lastOrNull() == home) {
-                                        selectionViewModel.clearSelection()
-                                        backStack.removeLastOrNull()
+                            val tripSessionViewModel: TripSessionViewModel = hiltViewModel()
+                            val session = tripSessions[profile.id]
+                            val validSession =
+                                session?.takeIf {
+                                    it.status == TripSessionStatus.ACTIVE &&
+                                        it.relationship == profile.relationship.name &&
+                                        CharacterLookCatalog.find(it.lookId) != null
+                                }
+                            if (validSession != null) {
+                                DestinationHome(
+                                    profile = profile,
+                                    onProfileClick = {
+                                        if (backStack.lastOrNull() == home) backStack.add(ManageProfile(profile.id))
+                                    },
+                                    onMapClick = {
+                                        if (backStack.lastOrNull() == home) backStack.add(VisitMap(profile.id))
+                                    },
+                                    source = tripSessionViewModel.destination,
+                                    onArrival = tripSessionViewModel::recordArrival,
+                                    simulateArrival = tripSessionViewModel::createDemoArrival,
+                                    saveTrip = { pendingArrival ->
+                                        tripSessionViewModel.save(profile.id, pendingArrival)
+                                    },
+                                    onFinish = {
+                                        if (backStack.lastOrNull() == home) {
+                                            selectionViewModel.clearSelection()
+                                            backStack.removeLastOrNull()
+                                        }
+                                    },
+                                    tripSessionId = validSession.sessionId,
+                                    onCompleteTrip = { sessionId ->
+                                        selectionViewModel.finishTrip(profile.id, sessionId)
+                                    },
+                                    renderCharacter = false,
+                                    drawBackground = false,
+                                )
+                            } else if (profile.id in tripSessionErrors) {
+                                Column(
+                                    Modifier.fillMaxSize(),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center,
+                                ) {
+                                    Text(tripSessionErrors.getValue(profile.id))
+                                    Button(onClick = { selectionViewModel.openOrResumeTrip(profile) }) {
+                                        Text("다시 시도")
                                     }
-                                },
-                                renderCharacter = false,
-                                drawBackground = false,
-                            )
+                                }
+                            } else {
+                                Column(
+                                    Modifier.fillMaxSize(),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center,
+                                ) { CircularProgressIndicator() }
+                            }
                         }
                     }
                     entry<VisitMap> { route ->
@@ -384,13 +424,30 @@ fun OnboardingNavigation(
                 },
         )
         val home = currentRoute as? Home
-        val homeRelationship = profiles.firstOrNull { it.id == home?.profileId }?.relationship
+        val activeHomeProfile = profiles.firstOrNull { it.id == home?.profileId }
+        val homeSession = activeHomeProfile?.let { tripSessions[it.id] }
+        val homeLook = homeSession?.let { CharacterLookCatalog.find(it.lookId) }
+        val homeRelationship =
+            activeHomeProfile?.relationship?.takeIf {
+                homeSession != null && homeSession.status == TripSessionStatus.ACTIVE &&
+                    homeSession.relationship == it.name && homeLook != null
+            }
         if (resourcesReady) {
             // Prepare the adult model first because its outfit uses an additional sheen shader.
             for (relationship in characterRelationships.sortedBy { it != ProfileRelationship.PARTNER }) {
                 key(relationship) {
+                    val cachedLook =
+                        homeLook?.takeIf { relationship == homeRelationship }
+                            ?: profiles
+                                .asSequence()
+                                .filter { it.relationship == relationship }
+                                .mapNotNull { profile ->
+                                    tripSessions[profile.id]?.let { CharacterLookCatalog.find(it.lookId) }
+                                }.firstOrNull()
+                            ?: CharacterLookCatalog.looksFor(relationship).first()
                     RetainedHomeCharacter(
                         relationship = relationship,
+                        look = cachedLook,
                         visible = relationship == homeRelationship,
                         active = relationship == homeRelationship,
                         prepare = onProfileList,

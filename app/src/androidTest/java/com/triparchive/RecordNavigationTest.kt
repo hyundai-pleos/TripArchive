@@ -10,6 +10,7 @@ import androidx.room.Room
 import androidx.test.platform.app.InstrumentationRegistry
 import com.triparchive.data.local.MIGRATION_1_2
 import com.triparchive.data.local.MIGRATION_2_3
+import com.triparchive.data.local.MIGRATION_3_4
 import com.triparchive.data.local.TripArchiveDatabase
 import com.triparchive.data.profile.Profile
 import com.triparchive.data.profile.ProfileRelationship
@@ -32,7 +33,7 @@ class RecordNavigationTest {
                 database =
                     Room
                         .databaseBuilder(context, TripArchiveDatabase::class.java, "triparchive.db")
-                        .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                         .build()
                 profileId =
                     runBlocking {

@@ -69,6 +69,8 @@ fun DestinationHome(
     modifier: Modifier = Modifier,
     renderCharacter: Boolean = true,
     drawBackground: Boolean = true,
+    tripSessionId: String? = null,
+    onCompleteTrip: suspend (String) -> Boolean = { true },
     onMapClick: () -> Unit = {},
     onArrival: (Destination) -> Unit = {},
     simulateArrival: (Destination) -> Destination? = { null },
@@ -79,11 +81,22 @@ fun DestinationHome(
     var acknowledged by remember(profile.id) { mutableStateOf<Long?>(null) }
     var confirm by remember(profile.id) { mutableStateOf(false) }
     var finishing by remember(profile.id) { mutableStateOf(false) }
+    var pendingFinishSessionId by remember(profile.id) { mutableStateOf<String?>(null) }
+    var finishError by remember(profile.id) { mutableStateOf(false) }
     var saving by remember(profile.id) { mutableStateOf(false) }
     var saveError by remember(profile.id) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(profile.id, finishing) {
-        if (finishing) onFinish()
+        if (finishing) {
+            val completed = pendingFinishSessionId?.let { onCompleteTrip(it) } ?: true
+            if (completed) {
+                onFinish()
+            } else {
+                finishing = false
+                confirm = true
+                finishError = true
+            }
+        }
     }
     LaunchedEffect(profile.id, lifecycle, source, finishing) {
         if (finishing) return@LaunchedEffect
@@ -167,7 +180,7 @@ fun DestinationHome(
         )
         if (confirm) {
             Dialog(
-                onDismissRequest = { if (!saving) confirm = false },
+                onDismissRequest = { if (!saving && !finishing) confirm = false },
                 properties = DialogProperties(usePlatformDefaultWidth = false),
             ) {
                 val window = (LocalView.current.parent as? DialogWindowProvider)?.window
@@ -188,18 +201,23 @@ fun DestinationHome(
                     if (saveError) {
                         Text("여행 기록을 저장하지 못했어요. 다시 시도해 주세요.", color = Ink, fontSize = (24 * s).sp)
                     }
+                    if (finishError) {
+                        Text("여행 착장을 저장하지 못했어요. 다시 시도해 주세요.", color = Pink, fontSize = (24 * s).sp)
+                    }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy((30 * s).dp)) {
                         ActionButton(if (saving) "저장 중" else "마치기", Pink, s, !saving, {
                             if (!finishing && !saving) {
                                 saving = true
                                 saveError = false
+                                finishError = false
                                 val pendingArrival = arrival
                                 scope.launch {
                                     if (saveTrip(pendingArrival)) {
-                                        finishing = true
+                                        pendingFinishSessionId = tripSessionId
                                         confirm = false
                                         demoArrival = null
                                         destination = DestinationState()
+                                        finishing = true
                                     } else {
                                         saveError = true
                                     }
@@ -207,9 +225,10 @@ fun DestinationHome(
                                 }
                             }
                         }, Modifier.weight(1f))
-                        ActionButton("취소", LightGray, s, !saving, {
+                        ActionButton("취소", LightGray, s, !saving && !finishing, {
                             confirm = false
                             saveError = false
+                            finishError = false
                         }, Modifier.weight(1f))
                     }
                 }
