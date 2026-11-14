@@ -214,7 +214,7 @@ fun DestinationHome(
             canSimulate = !finishing && arrival == null && !confirm,
             onArrive = { demoArrival = it },
             onReset = { demoArrival = null },
-            modifier = Modifier.align(Alignment.CenterEnd),
+            modifier = Modifier.align(Alignment.TopStart).padding(start = (16 * s).dp, top = (144 * s).dp),
         )
         if (confirm) {
             Dialog(
