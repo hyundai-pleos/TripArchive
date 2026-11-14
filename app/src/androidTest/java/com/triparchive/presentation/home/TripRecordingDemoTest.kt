@@ -17,6 +17,7 @@ import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.data.record.RoomRecordRepository
 import com.triparchive.domain.navigation.DestinationState
 import com.triparchive.domain.navigation.ResolveDestinationCategory
+import com.triparchive.testing.RecordingTripSessions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -61,7 +62,13 @@ class TripRecordingDemoTest {
     @Test
     fun twoDemoArrivalsAndFinishSaveOrderedRecordForSelectedProfile() {
         val source = MutableStateFlow(DestinationTestFixtures.active("시장"))
-        val session = TripSessionViewModel(repository, FakeDestinationSource(source), ResolveDestinationCategory())
+        val session =
+            TripSessionViewModel(
+                repository,
+                FakeDestinationSource(source),
+                ResolveDestinationCategory(),
+                RecordingTripSessions(),
+            )
         var finished = false
         compose.setContent {
             TripArchiveTheme {
@@ -104,7 +111,13 @@ class TripRecordingDemoTest {
     @Test
     fun finishFromArrivalIncludesPendingStopAndCancelDoesNotSave() {
         val source = MutableStateFlow(DestinationTestFixtures.active("해변", id = 2))
-        val session = TripSessionViewModel(repository, FakeDestinationSource(source), ResolveDestinationCategory())
+        val session =
+            TripSessionViewModel(
+                repository,
+                FakeDestinationSource(source),
+                ResolveDestinationCategory(),
+                RecordingTripSessions(),
+            )
         var finished = false
         compose.setContent {
             TripArchiveTheme {
@@ -143,7 +156,13 @@ class TripRecordingDemoTest {
     @Test
     fun failedSaveKeepsTripOpenAndRetrySavesItOnce() {
         val source = MutableStateFlow(DestinationTestFixtures.active("시장"))
-        val session = TripSessionViewModel(repository, FakeDestinationSource(source), ResolveDestinationCategory())
+        val session =
+            TripSessionViewModel(
+                repository,
+                FakeDestinationSource(source),
+                ResolveDestinationCategory(),
+                RecordingTripSessions(),
+            )
         var attempts = 0
         var finished = false
         compose.setContent {

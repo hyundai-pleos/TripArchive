@@ -2,11 +2,14 @@ package com.triparchive.data.trip
 
 import androidx.room.Entity
 import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.triparchive.data.profile.Profile
+import com.triparchive.domain.navigation.DestinationCategory
 
 @Entity(
     tableName = "trip_sessions",
+    indices = [Index(value = ["sessionId"], unique = true)],
     foreignKeys =
         [
             ForeignKey(
@@ -35,6 +38,7 @@ data class TripSession(
     val relationship: String,
     val status: TripSessionStatus,
     val updatedAtMillis: Long,
+    val props: List<DestinationCategory> = emptyList(),
 )
 
 internal fun TripSessionEntity.toDomain() =

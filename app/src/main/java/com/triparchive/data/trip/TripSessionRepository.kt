@@ -4,6 +4,7 @@ import com.triparchive.data.character.CharacterLookCatalog
 import com.triparchive.data.local.TripArchiveDatabase
 import com.triparchive.data.profile.Profile
 import com.triparchive.data.profile.ProfileRelationship
+import com.triparchive.domain.navigation.DestinationCategory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -19,6 +20,12 @@ interface TripSessionRepository {
         profileId: Long,
         sessionId: String,
     ): TripSession?
+
+    suspend fun acquireProp(
+        profileId: Long,
+        sessionId: String,
+        category: DestinationCategory,
+    ): Boolean
 
     fun observe(profileId: Long): Flow<TripSession?>
 }
@@ -70,7 +77,7 @@ class RoomTripSessionRepository
                         } else if (current != next) {
                             dao.update(next)
                         }
-                        next.toDomain()
+                        TripSessionWithProps(next, dao.getProps(next.sessionId)).toDomain()
                     },
                 )
             }
@@ -96,6 +103,7 @@ class RoomTripSessionRepository
                                     status = TripSessionStatus.READY.name,
                                     updatedAtMillis = System.currentTimeMillis(),
                                 )
+                            dao.deleteProps(current.sessionId)
                             check(dao.update(next) == 1)
                             next.toDomain()
                         }
@@ -103,8 +111,28 @@ class RoomTripSessionRepository
                 )
             }
 
+        override suspend fun acquireProp(
+            profileId: Long,
+            sessionId: String,
+            category: DestinationCategory,
+        ): Boolean =
+            withContext(Dispatchers.IO) {
+                database.runInTransaction(
+                    Callable {
+                        val session = dao.getByProfileId(profileId)
+                        if (session?.sessionId != sessionId || session.status != TripSessionStatus.ACTIVE.name) {
+                            return@Callable false
+                        }
+                        val props = dao.getProps(sessionId)
+                        if (props.any { it.category == category.name }) return@Callable true
+                        if (props.size >= DestinationCategory.entries.size) return@Callable false
+                        dao.insertProp(TripSessionPropEntity(sessionId, category.name, props.size)) != -1L
+                    },
+                )
+            }
+
         override fun observe(profileId: Long): Flow<TripSession?> =
-            dao.observeByProfileId(profileId).map { it?.toDomain() }
+            dao.observeWithProps(profileId).map { it?.toDomain() }
 
         private fun newSession(
             profileId: Long,

@@ -44,6 +44,7 @@ class ProfileSelectionViewModel
         private val mutableTripSessionErrors = MutableStateFlow<Map<Long, String>>(emptyMap())
         val tripSessionErrors = mutableTripSessionErrors.asStateFlow()
         private var observation: Job? = null
+        private val tripObservationJobs = mutableMapOf<Long, Job>()
         private val tripOpenJobs = mutableMapOf<Long, Job>()
 
         init {
@@ -89,6 +90,14 @@ class ProfileSelectionViewModel
                     try {
                         val session = tripSessionRepository.openOrResume(profile)
                         mutableTripSessions.update { it + (profile.id to session) }
+                        if (tripObservationJobs[profile.id]?.isActive != true) {
+                            tripObservationJobs[profile.id] =
+                                viewModelScope.launch {
+                                    tripSessionRepository.observe(profile.id).collect { updated ->
+                                        if (updated != null) mutableTripSessions.update { it + (profile.id to updated) }
+                                    }
+                                }
+                        }
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (_: Exception) {

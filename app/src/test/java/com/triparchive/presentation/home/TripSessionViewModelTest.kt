@@ -13,6 +13,7 @@ import com.triparchive.domain.navigation.DestinationSource
 import com.triparchive.domain.navigation.DestinationState
 import com.triparchive.domain.navigation.ResolveDestinationCategory
 import com.triparchive.presentation.home.components.CategoryChoice
+import com.triparchive.testing.RecordingTripSessions
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +41,7 @@ class TripSessionViewModelTest {
                     repository,
                     FakeDestinationSource(),
                     ResolveDestinationCategory(),
+                    RecordingTripSessions(),
                 )
             session.recordArrival(place(1, "시장"))
             session.recordArrival(place(2, "해변"))
@@ -63,6 +65,7 @@ class TripSessionViewModelTest {
                     repository,
                     FakeDestinationSource(),
                     ResolveDestinationCategory(),
+                    RecordingTripSessions(),
                 )
             session.recordArrival(place(1, "시장"))
             assertTrue(session.save(3, place(2, "  해변  ")))
@@ -78,6 +81,7 @@ class TripSessionViewModelTest {
                     repository,
                     FakeDestinationSource(),
                     ResolveDestinationCategory(),
+                    RecordingTripSessions(),
                 ).save(3, null),
             )
             assertEquals(1, repository.saved.size)
@@ -92,6 +96,7 @@ class TripSessionViewModelTest {
                     repository,
                     FakeDestinationSource(),
                     ResolveDestinationCategory(),
+                    RecordingTripSessions(),
                 )
             session.recordArrival(place(1, "시장"))
             assertFalse(session.save(1, place(2, "해변")))
@@ -122,6 +127,7 @@ class TripSessionViewModelTest {
                     repository,
                     FakeDestinationSource(),
                     ResolveDestinationCategory(),
+                    RecordingTripSessions(),
                 )
             session.recordArrival(place(1, "시장"))
             val first = async { session.save(1, null) }
@@ -142,6 +148,7 @@ class TripSessionViewModelTest {
                     repository,
                     FakeDestinationSource(),
                     ResolveDestinationCategory(),
+                    RecordingTripSessions(),
                 )
             session.recordArrival(place(1, "시장", DestinationCategory.MART))
             session.recordArrival(place(2, "병원", DestinationCategory.HOSPITAL))
@@ -160,6 +167,7 @@ class TripSessionViewModelTest {
                     repository,
                     FakeDestinationSource(),
                     ResolveDestinationCategory(),
+                    RecordingTripSessions(),
                 )
             session.recordArrival(place(1, "시장"))
             assertFalse(session.save(1, place(2, "해변")))
@@ -185,7 +193,8 @@ class TripSessionViewModelTest {
         runBlocking {
             val repository = FakeRecords()
             val source = FakeDestinationSource()
-            val session = TripSessionViewModel(repository, source, ResolveDestinationCategory())
+            val session =
+                TripSessionViewModel(repository, source, ResolveDestinationCategory(), RecordingTripSessions())
             val first = place(1, "시장", DestinationCategory.MART)
             session.recordArrival(first)
             session.recordArrival(first)
@@ -206,7 +215,13 @@ class TripSessionViewModelTest {
     fun alreadyRecordedPendingVisitIsNotAddedAgainOnFinish() =
         runBlocking {
             val repository = FakeRecords()
-            val session = TripSessionViewModel(repository, FakeDestinationSource(), ResolveDestinationCategory())
+            val session =
+                TripSessionViewModel(
+                    repository,
+                    FakeDestinationSource(),
+                    ResolveDestinationCategory(),
+                    RecordingTripSessions(),
+                )
             val market = place(1, "시장", DestinationCategory.MART)
             session.recordArrival(market)
             assertTrue(session.save(1, market))
@@ -223,7 +238,8 @@ class TripSessionViewModelTest {
         runBlocking {
             val source = FakeDestinationSource()
             val repository = FakeRecords()
-            val session = TripSessionViewModel(repository, source, ResolveDestinationCategory())
+            val session =
+                TripSessionViewModel(repository, source, ResolveDestinationCategory(), RecordingTripSessions())
             source.session.destinationChanged("시장", 37.0, 127.0)
             source.session.arrive("시장")
             source.session.routeStarted()
@@ -244,7 +260,13 @@ class TripSessionViewModelTest {
     fun manualCategoryOverridesLaterClassificationForRecordedArrival() =
         runBlocking {
             val repository = FakeRecords()
-            val session = TripSessionViewModel(repository, FakeDestinationSource(), ResolveDestinationCategory())
+            val session =
+                TripSessionViewModel(
+                    repository,
+                    FakeDestinationSource(),
+                    ResolveDestinationCategory(),
+                    RecordingTripSessions(),
+                )
             val destination = place(8, "시장").copy(categoryStatus = CategoryLookupStatus.SUCCESS)
             session.categorySelection.update(DestinationState(current = destination, routing = true))
             session.categorySelection.select(CategoryChoice.SCHOOL)
@@ -260,7 +282,8 @@ class TripSessionViewModelTest {
         runBlocking {
             val repository = FakeRecords()
             val source = FakeDestinationSource()
-            val session = TripSessionViewModel(repository, source, ResolveDestinationCategory())
+            val session =
+                TripSessionViewModel(repository, source, ResolveDestinationCategory(), RecordingTripSessions())
             source.session.routeStarted()
             source.session.destinationChanged("시장", 37.0, 127.0)
             val current = source.session.state.current!!
@@ -283,7 +306,13 @@ class TripSessionViewModelTest {
     fun otherKeepsAnUnclassifiedCategoryAcrossSaveRetries() =
         runBlocking {
             val repository = FakeRecords().apply { shouldFail = true }
-            val session = TripSessionViewModel(repository, FakeDestinationSource(), ResolveDestinationCategory())
+            val session =
+                TripSessionViewModel(
+                    repository,
+                    FakeDestinationSource(),
+                    ResolveDestinationCategory(),
+                    RecordingTripSessions(),
+                )
             val destination = place(8, "장소").copy(categoryStatus = CategoryLookupStatus.SUCCESS)
             session.categorySelection.update(DestinationState(current = destination, routing = true))
             session.categorySelection.select(CategoryChoice.OTHER)
@@ -301,7 +330,7 @@ class TripSessionViewModelTest {
     @Test
     fun destinationSourceRemainsObservedUntilTheHomeSessionScopeEnds() {
         val source = FakeDestinationSource()
-        val session = TripSessionViewModel(FakeRecords(), source, ResolveDestinationCategory())
+        val session = TripSessionViewModel(FakeRecords(), source, ResolveDestinationCategory(), RecordingTripSessions())
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         try {
             session.startDestinationObservation(scope)
@@ -324,6 +353,135 @@ class TripSessionViewModelTest {
             scope.cancel()
         }
     }
+
+    @Test
+    fun propsRequireConfirmedRouteAndLateLookupSurvivesArrivalAcknowledgement() =
+        runBlocking {
+            val source = FakeDestinationSource()
+            val props = RecordingTripSessions()
+            val vm = TripSessionViewModel(FakeRecords(), source, ResolveDestinationCategory(), props)
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+            try {
+                vm.startDestinationObservation(scope, 7, "trip-1")
+                source.session.destinationChanged("음식점", 37.0, 127.0)
+                val first = source.session.state.current!!
+                source.session.categoryResolved(
+                    first.id,
+                    CategoryLookupResult(DestinationCategory.FOOD, CategoryLookupStatus.SUCCESS),
+                )
+                assertTrue(props.acquisitions.isEmpty())
+                source.session.routeStarted()
+                assertEquals(listOf(DestinationCategory.FOOD), props.acquisitions.map { it.third })
+                source.session.arrive("음식점")
+                source.session.acknowledgeArrival(first.id)
+                source.session.routeStarted()
+                source.session.destinationChanged("관광지", 37.1, 127.1)
+                val second = source.session.state.current!!
+                source.session.arrive("관광지")
+                source.session.acknowledgeArrival(second.id)
+                assertTrue(source.session.lookupDestinations().any { it.id == second.id })
+                source.session.categoryResolved(
+                    second.id,
+                    CategoryLookupResult(DestinationCategory.TOURISM, CategoryLookupStatus.SUCCESS),
+                )
+                assertEquals(
+                    listOf(DestinationCategory.FOOD, DestinationCategory.TOURISM),
+                    props.acquisitions.map { it.third },
+                )
+                source.session.clearCurrent()
+                assertEquals(2, props.acquisitions.size)
+                assertTrue(props.acquisitions.all { it.first == 7L && it.second == "trip-1" })
+            } finally {
+                scope.cancel()
+            }
+        }
+
+    @Test
+    fun loadingFailuresAndOtherDoNotAwardPropsButManualConfirmationDoes() =
+        runBlocking {
+            val props = RecordingTripSessions()
+            val vm = TripSessionViewModel(FakeRecords(), FakeDestinationSource(), ResolveDestinationCategory(), props)
+            val destination = place(10, "학교", DestinationCategory.SCHOOL)
+            for (status in listOf(
+                CategoryLookupStatus.IDLE,
+                CategoryLookupStatus.LOADING,
+                CategoryLookupStatus.FAILURE,
+            )) {
+                vm.acquireDestinationProp(7, "trip", destination.copy(categoryStatus = status))
+            }
+            assertTrue(props.acquisitions.isEmpty())
+            val failed = destination.copy(category = null, categoryStatus = CategoryLookupStatus.FAILURE)
+            vm.categorySelection.update(DestinationState(current = failed, routing = true))
+            vm.categorySelection.select(CategoryChoice.SCHOOL)
+            vm.categorySelection.confirm()
+            vm.acquireDestinationProp(7, "trip", failed)
+            vm.acquireDestinationProp(
+                7,
+                "trip",
+                failed.copy(category = DestinationCategory.MART, categoryStatus = CategoryLookupStatus.SUCCESS),
+            )
+            assertEquals(listOf(DestinationCategory.SCHOOL), props.acquisitions.map { it.third })
+            val other = failed.copy(id = 11)
+            vm.categorySelection.update(DestinationState(current = other, routing = true))
+            vm.categorySelection.dismiss()
+            vm.acquireDestinationProp(
+                7,
+                "trip",
+                other.copy(category = DestinationCategory.MART, categoryStatus = CategoryLookupStatus.SUCCESS),
+            )
+            assertEquals(1, props.acquisitions.size)
+        }
+
+    @Test
+    fun restoredConfirmedDestinationBackfillsAnExistingTrip() {
+        val source = FakeDestinationSource()
+        source.session.destinationChanged("병원", 37.0, 127.0)
+        source.session.routeStarted()
+        source.session.categoryResolved(
+            source.session.state.current!!
+                .id,
+            CategoryLookupResult(DestinationCategory.HOSPITAL, CategoryLookupStatus.SUCCESS),
+        )
+        val props = RecordingTripSessions()
+        val vm = TripSessionViewModel(FakeRecords(), source, ResolveDestinationCategory(), props)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        try {
+            vm.startDestinationObservation(scope, 7, "existing-session")
+            assertEquals(listOf(Triple(7L, "existing-session", DestinationCategory.HOSPITAL)), props.acquisitions)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun manualConfirmationUsesTripScopeInsteadOfTheDepartingScreenScope() =
+        runBlocking {
+            val gate = CompletableDeferred<Unit>()
+            val props = RecordingTripSessions().apply { beforeAcquire = { gate.await() } }
+            val vm = TripSessionViewModel(FakeRecords(), FakeDestinationSource(), ResolveDestinationCategory(), props)
+            val tripScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+            val screenScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+            try {
+                val destination =
+                    place(
+                        10,
+                        "학교",
+                        DestinationCategory.SCHOOL,
+                    ).copy(categoryStatus = CategoryLookupStatus.SUCCESS)
+                val navigation =
+                    screenScope.async {
+                        vm.confirmDestination(7, "trip", destination, tripScope)
+                    }
+                navigation.await()
+                screenScope.cancel()
+                assertTrue(props.acquisitions.isEmpty())
+                gate.complete(Unit)
+                assertEquals(listOf(Triple(7L, "trip", DestinationCategory.SCHOOL)), props.acquisitions)
+            } finally {
+                screenScope.cancel()
+                tripScope.cancel()
+            }
+        }
 
     private fun place(
         id: Long,

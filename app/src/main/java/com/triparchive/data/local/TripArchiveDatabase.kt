@@ -11,10 +11,13 @@ import com.triparchive.data.record.TripRecord
 import com.triparchive.data.record.TripStop
 import com.triparchive.data.trip.TripSessionDao
 import com.triparchive.data.trip.TripSessionEntity
+import com.triparchive.data.trip.TripSessionPropEntity
 
 @Database(
-    entities = [Profile::class, TripRecord::class, TripStop::class, TripSessionEntity::class],
-    version = 4,
+    entities = [
+        Profile::class, TripRecord::class, TripStop::class, TripSessionEntity::class, TripSessionPropEntity::class,
+    ],
+    version = 5,
     exportSchema = true,
 )
 abstract class TripArchiveDatabase : RoomDatabase() {
@@ -64,5 +67,20 @@ val MIGRATION_3_4 =
     object : Migration(3, 4) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("ALTER TABLE `trip_stops` ADD COLUMN `category` TEXT")
+        }
+    }
+
+val MIGRATION_4_5 =
+    object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_sessions_sessionId` ON `trip_sessions` (`sessionId`)",
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `trip_session_props` (`sessionId` TEXT NOT NULL, `category` TEXT NOT NULL, `acquiredOrder` INTEGER NOT NULL, PRIMARY KEY(`sessionId`, `category`), FOREIGN KEY(`sessionId`) REFERENCES `trip_sessions`(`sessionId`) ON UPDATE NO ACTION ON DELETE CASCADE)",
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_session_props_sessionId_acquiredOrder` ON `trip_session_props` (`sessionId`, `acquiredOrder`)",
+            )
         }
     }
