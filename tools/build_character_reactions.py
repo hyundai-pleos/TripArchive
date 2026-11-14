@@ -161,6 +161,9 @@ def build(path):
                     # Compress the oval into a thick inward-pointing >< stroke.
                     # Catchlights use the same map; no skin or eye pivot moves.
                     sx = 0.20
+                    # Parent eyes are shallow arcs rather than tall ovals.
+                    if doc["nodes"][ni].get("name") == "BODY|parent":
+                        sy = 2.4
                     v = (y-center[1]) / half[1]
                     direction = 1.0 if group == "left" else -1.0
                     fold = direction * half[0] * 0.9
