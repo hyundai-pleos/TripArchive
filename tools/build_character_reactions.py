@@ -20,7 +20,7 @@ NAMES = ["REACTION_CALM", "REACTION_WAITING", "REACTION_JOY", "REACTION_MOVING",
 # eye height, eye smile arch, mouth width, mouth height
 POSES = [(0.90, 0.0, 0.85, 0.50), (0.65, 0.0, 0.85, 0.18),
          (0.32, 0.22, 1.08, 1.12), (0.82, 0.05, 0.95, 0.72),
-         (0.25, 0.08, 0.90, 0.48)]
+         (0.58, 0.04, 0.90, 0.65)]
 
 
 def bounds(points):
@@ -102,6 +102,12 @@ def build(path):
         if not (explicit or unified):
             continue
         mesh = doc["meshes"][node["mesh"]]
+        if unified:
+            # The atlas bakes neutral eye contours onto skin. They remain visible
+            # after eye morphs; use authored vertex normals on this body material.
+            # Clothing/accessory materials and base color textures stay intact.
+            for primitive in mesh["primitives"]:
+                doc["materials"][primitive["material"]].pop("normalTexture", None)
         for primitive in mesh["primitives"]:
             positions = glb.read_float_vec3(primitive["attributes"]["POSITION"])
             points = [point(worlds[ni], p) for p in positions]
