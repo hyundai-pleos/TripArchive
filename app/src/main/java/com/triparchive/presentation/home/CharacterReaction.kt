@@ -35,8 +35,8 @@ internal class CharacterReactionReducer(
         private set
 
     private var reactionEnteredAtMillis = Long.MIN_VALUE
-    private var pendingSpeedBand: CharacterReactionSpeedBand? = null
-    private var pendingSpeedBandSinceMillis = 0L
+    private var aboveSixtySinceMillis: Long? = null
+    private var aboveHundredSinceMillis: Long? = null
     private var joyExpiresAtMillis: Long? = null
     private var flowRecoverySinceMillis: Long? = null
 
@@ -171,62 +171,37 @@ internal class CharacterReactionReducer(
         speedKph: Float,
         nowMillis: Long,
     ) {
-        val lowerBand =
-            when (speedBand) {
-                CharacterReactionSpeedBand.KPH_100 -> {
-                    if (speedKph < HIGH_SPEED_EXIT_100_KPH) {
-                        if (speedKph < HIGH_SPEED_EXIT_60_KPH) {
-                            CharacterReactionSpeedBand.STANDARD
-                        } else {
-                            CharacterReactionSpeedBand.KPH_60
-                        }
-                    } else {
-                        CharacterReactionSpeedBand.KPH_100
-                    }
+        // Nested speed thresholds need independent clocks: dropping below 103 must not
+        // discard time already spent above 63 km/h.
+        aboveSixtySinceMillis =
+            if (speedKph >= HIGH_SPEED_ENTER_60_KPH) aboveSixtySinceMillis ?: nowMillis else null
+        aboveHundredSinceMillis =
+            if (speedKph >= HIGH_SPEED_ENTER_100_KPH) aboveHundredSinceMillis ?: nowMillis else null
+        val sixtyReady = aboveSixtySinceMillis?.let { nowMillis - it >= HIGH_SPEED_ENTRY_DWELL_MILLIS } == true
+        val hundredReady = aboveHundredSinceMillis?.let { nowMillis - it >= HIGH_SPEED_ENTRY_DWELL_MILLIS } == true
+        val next =
+            when {
+                speedBand == CharacterReactionSpeedBand.KPH_100 && speedKph >= HIGH_SPEED_EXIT_100_KPH -> {
+                    CharacterReactionSpeedBand.KPH_100
                 }
 
-                CharacterReactionSpeedBand.KPH_60 -> {
-                    if (speedKph < HIGH_SPEED_EXIT_60_KPH) {
-                        CharacterReactionSpeedBand.STANDARD
-                    } else {
-                        CharacterReactionSpeedBand.KPH_60
-                    }
+                hundredReady -> {
+                    CharacterReactionSpeedBand.KPH_100
                 }
 
-                CharacterReactionSpeedBand.STANDARD -> {
+                speedBand != CharacterReactionSpeedBand.STANDARD && speedKph >= HIGH_SPEED_EXIT_60_KPH -> {
+                    CharacterReactionSpeedBand.KPH_60
+                }
+
+                sixtyReady -> {
+                    CharacterReactionSpeedBand.KPH_60
+                }
+
+                else -> {
                     CharacterReactionSpeedBand.STANDARD
                 }
             }
-
-        if (lowerBand != speedBand) {
-            changeSpeedBand(lowerBand, nowMillis)
-            pendingSpeedBand = null
-            return
-        }
-
-        val upwardTarget =
-            when {
-                speedBand == CharacterReactionSpeedBand.KPH_100 -> CharacterReactionSpeedBand.KPH_100
-                speedKph >= HIGH_SPEED_ENTER_100_KPH -> CharacterReactionSpeedBand.KPH_100
-                speedBand == CharacterReactionSpeedBand.KPH_60 -> CharacterReactionSpeedBand.KPH_60
-                speedKph >= HIGH_SPEED_ENTER_60_KPH -> CharacterReactionSpeedBand.KPH_60
-                else -> null
-            }
-
-        if (upwardTarget == null || upwardTarget == speedBand) {
-            pendingSpeedBand = null
-            return
-        }
-        if (pendingSpeedBand != upwardTarget) {
-            pendingSpeedBand = upwardTarget
-            pendingSpeedBandSinceMillis = nowMillis
-            return
-        }
-        val pendingFor = nowMillis - pendingSpeedBandSinceMillis
-        if (pendingFor >= HIGH_SPEED_ENTRY_DWELL_MILLIS) {
-            changeSpeedBand(upwardTarget, nowMillis)
-            pendingSpeedBand = null
-        }
+        if (next != speedBand) changeSpeedBand(next, nowMillis)
     }
 
     private fun requestReaction(
@@ -268,7 +243,8 @@ internal class CharacterReactionReducer(
     }
 
     private fun resetSpeedBand(nowMillis: Long) {
-        pendingSpeedBand = null
+        aboveSixtySinceMillis = null
+        aboveHundredSinceMillis = null
         if (speedBand != CharacterReactionSpeedBand.STANDARD) {
             speedBand = CharacterReactionSpeedBand.STANDARD
             updateTransitionTarget(nowMillis)

@@ -114,4 +114,34 @@ class CharacterReactionReducerTest {
         assertEquals(CharacterReaction.CALM, reducer.update(0f, 10_001L).reaction)
         assertEquals(CharacterReaction.CALM, reducer.update(null, 10_002L).reaction)
     }
+
+    @Test
+    fun nestedSpeedThresholdsKeepIndependentDwellClocks() {
+        val descending = CharacterReactionReducer()
+        descending.update(105f, 0L)
+        descending.update(105f, 2_000L)
+        assertEquals(CharacterReactionSpeedBand.KPH_60, descending.update(100f, 3_000L).speedBand)
+
+        val ascending = CharacterReactionReducer()
+        ascending.update(65f, 0L)
+        ascending.update(105f, 2_000L)
+        assertEquals(CharacterReactionSpeedBand.KPH_60, ascending.update(105f, 3_000L).speedBand)
+        assertEquals(CharacterReactionSpeedBand.KPH_100, ascending.update(105f, 5_000L).speedBand)
+    }
+
+    @Test
+    fun invalidInputOverridesWindAndRecoveryRestartsEntryDwell() {
+        listOf(null, Float.NaN, Float.POSITIVE_INFINITY, -1f).forEach { invalid ->
+            val reducer = CharacterReactionReducer()
+            reducer.update(105f, 0L)
+            assertEquals(CharacterReaction.WIND, reducer.update(105f, 3_000L).reaction)
+            assertEquals(CharacterReaction.CALM, reducer.update(invalid, 3_100L).reaction)
+            assertEquals(CharacterReactionSpeedBand.STANDARD, reducer.speedBand)
+            assertTrue(reducer.update(invalid, 3_750L).morphWeights.all { it == 0f })
+            reducer.update(105f, 5_000L)
+            assertEquals(CharacterReactionSpeedBand.STANDARD, reducer.update(105f, 7_999L).speedBand)
+            assertEquals(CharacterReactionSpeedBand.KPH_100, reducer.update(105f, 8_000L).speedBand)
+            assertEquals(CharacterReaction.WIND, reducer.update(105f, 8_100L).reaction)
+        }
+    }
 }
