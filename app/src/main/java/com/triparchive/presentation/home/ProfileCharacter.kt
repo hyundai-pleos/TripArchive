@@ -41,7 +41,6 @@ import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberCollisionSystem
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberMainLightNode
-import io.github.sceneview.rememberModelInstance
 import io.github.sceneview.rememberModelLoader
 import io.github.sceneview.rememberScene
 import io.github.sceneview.rememberView
@@ -116,7 +115,7 @@ internal fun ProfileCharacter(
         rememberMainLightNode(engine) {
             intensity = 60_000f
         }
-    val destinationPropNodes = rememberDestinationPropNodes(modelLoader, sceneNodeManager, destinationCategory)
+    val destinationPropNodes = rememberDestinationPropNodes(modelLoader, engine, sceneNodeManager, destinationCategory)
     val characterNode =
         if (look.baseAssetPath != null && look.compositeAssetPath != null) {
             rememberCharacterNode(
@@ -179,13 +178,19 @@ internal fun ProfileCharacter(
 @Composable
 private fun rememberDestinationPropNodes(
     modelLoader: ModelLoader,
+    engine: Engine,
     sceneNodeManager: SceneNodeManager,
     selectedCategory: DestinationCategory?,
 ): List<RiggedModelNode> {
     val nodes = mutableListOf<RiggedModelNode>()
     DestinationCategory.values().forEach { category ->
         key(category) {
-            val modelInstance = rememberModelInstance(modelLoader, "models/destination_props/${category.assetFileName}")
+            val modelInstance =
+                rememberRequestModelInstance(
+                    modelLoader,
+                    engine,
+                    "models/destination_props/${category.assetFileName}",
+                )
             if (modelInstance != null) {
                 val node =
                     remember(modelInstance) {
@@ -226,8 +231,8 @@ private fun rememberCharacterNode(
     val baseAssetPath = look.baseAssetPath
     val compositeAssetPath = look.compositeAssetPath
     if (baseAssetPath != null && compositeAssetPath != null) {
-        val base = rememberModelInstance(modelLoader, baseAssetPath)
-        val composite = rememberModelInstance(modelLoader, compositeAssetPath)
+        val base = rememberRequestModelInstance(modelLoader, engine, baseAssetPath)
+        val composite = rememberRequestModelInstance(modelLoader, engine, compositeAssetPath)
         if (base == null || composite == null) return null
 
         val characterNode =
@@ -302,8 +307,8 @@ private fun rememberCharacterNode(
 
     val outfitAssetPath = look.outfitAssetPath ?: return null
     val accessoryAssetPath = look.accessoryAssetPath ?: return null
-    val outfit = rememberModelInstance(modelLoader, outfitAssetPath) ?: return null
-    val accessory = rememberModelInstance(modelLoader, accessoryAssetPath) ?: return null
+    val outfit = rememberRequestModelInstance(modelLoader, engine, outfitAssetPath) ?: return null
+    val accessory = rememberRequestModelInstance(modelLoader, engine, accessoryAssetPath) ?: return null
     val outfitNode =
         remember(outfit) {
             RiggedModelNode(

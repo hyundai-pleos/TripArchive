@@ -92,4 +92,26 @@ Pleos Connect 2.1.0 / API 34, 사용자 10의 2분할 화면에서 아이 프로
 
 `ktlintCheck`, `testDebugUnitTest`, `assembleDemo`, `assembleDebug`, `git diff --check`가 통과했다. 실제 목적지 분류 공급은 여전히 #23 연동 후 검증해야 한다. 이번 결과는 데모 입력으로 렌더링과 분할 전환을 확인한 것이며, 모든 착장 조합 또는 실제 차량에서의 검증을 뜻하지 않는다.
 
-별도 기존 문제로 프로필 관계를 편집한 뒤 화면 복귀 시 `Texture is not created yet` 크래시가 수정 전에도 관찰됐다. 분할 전환 수정으로 해당 편집 경로까지 해결됐다고 보지는 않으며, 프로필 편집 후 모델 교체 수명은 별도 조사 대상이다.
+분할 수정 당시 별도 문제로 남겼던 프로필 관계 편집 후 텍스처 크래시의 후속 보완은 아래에 기록한다.
+
+
+## 프로필 관계 편집 시 텍스처 수명 보호 (2026-11-14)
+
+이전 로그에는 관계 편집 후 복귀 중 `asyncBeginLoad` 경로의 `Texture is not created yet` 크래시가 있었다. 다만 분할 수정 커밋 `ec66d48`에서 관계 편집·복귀를 16회 재시도했을 때는 재현되지 않았다. 따라서 아래 변경은 당시 크래시의 유일한 원인을 확정한 결과가 아니라, 소스에서 확인한 안전하지 않은 비동기 리소스 수명을 보호하는 수정이다.
+
+SceneView 4.25.0의 기존 모델 로딩 helper는 비동기 작업 시작 직후 인스턴스를 반환하고, composition에서 빠질 때 모델을 파괴한다. 앱의 새 `rememberRequestModelInstance`는 요청마다 전용 ResourceLoader와 asset을 소유한다. 메인 스레드에서 준비 상태를 갱신하고 완료된 모델만 노드에 전달한다. 취소 시에는 해당 요청의 로딩을 취소하고 데이터·asset·loader를 정리한다. 완료된 asset은 소비 노드가 분리된 뒤 한 번만 해제한다. 비활성 SceneView에서도 준비 작업이 진행되며, 다른 모델 요청의 로딩을 취소하지 않는다.
+
+이는 [Filament 1.77.3 ResourceLoader의 완료·취소 계약](https://github.com/google/filament/blob/v1.77.3/libs/gltfio/include/gltfio/ResourceLoader.h)과 같은 버전 ModelViewer의 cancel→evict→detach→destroy 순서를 기준으로 구현했다. 모델 파일과 외부 URI의 읽기는 IO에서 수행하고 네이티브 asset 접근과 해제는 메인 스레드에 둔다.
+
+관계를 편집한 프로필이 이전 관계의 여행 세션 look을 잠시 재사용하지 않도록 관계와 해당 관계의 카탈로그 소속을 함께 확인한다. 같은 관계의 여러 프로필 중 유효한 저장 착장을 먼저 사용하고, 없으면 해당 관계의 기본 착장을 준비한다. 카메라 z=2.05, 모델 스케일, 홈 영역과 소품 위치는 변경하지 않았다.
+
+검증 결과:
+
+- `ktlintCheck`, `testDebugUnitTest`(39개, 실패 0), `assembleDemo`, `assembleDebug` 통과.
+- 새 단위 테스트는 완료 전 게시 금지, 로딩 중 취소→해제 순서, 완료 후 asset 유지와 중복 해제 방지, 관계 불일치·잘못된 look·다중 프로필 캐시 선택을 확인한다.
+- Pleos에서 성인→부모님→아이 관계 편집·저장·홈 복귀를 세 차례 반복(총 9회). 모든 화면에서 올바른 연령의 캐릭터가 표시됐고, 프로세스 PID가 유지됐다. 캡처에서 캐릭터 구도·크기를 확인했다.
+- 관계 변경 후 아이 홈에서 2→3분할, 소품 다섯 종 전환, 3→2분할 복귀도 정상 동작했다.
+- 관계 전환 로그에 `Texture is not created yet`, `PreconditionPanic`, `Fatal signal`, 새 모델 로더 오류 및 `EGL_BAD_MATCH`가 없었다.
+- 로컬 근거: `.state/profile-texture/run/after-results.txt`, `after-relations-log.txt`, `after-sheet.jpg`. APK SHA-256: `e5cb9925526652aff80ab31d12e1faf14a202bde3419c94c0f3048d2e2304f3d`. 캡처·로그·APK는 Git 제외.
+
+자동 테스트는 수명 계약을 검사하며 실제 Filament 네이티브 실행을 대체하지 않는다. 이번 반복에서 크래시는 관찰되지 않았지만 간헐적 오류가 모든 환경에서 사라졌다고 단정하지 않는다. #23의 실제 내비게이션 분류 연동은 기존과 같이 별도 범위다.

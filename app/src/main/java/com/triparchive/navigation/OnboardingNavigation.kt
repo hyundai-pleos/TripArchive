@@ -286,7 +286,7 @@ private fun OnboardingNavigationContent(
                                 session?.takeIf {
                                     it.status == TripSessionStatus.ACTIVE &&
                                         it.relationship == profile.relationship.name &&
-                                        CharacterLookCatalog.find(it.lookId) != null
+                                        cachedCharacterLook(it, profile.relationship) != null
                                 }
                             if (validSession != null) {
                                 DestinationHome(
@@ -479,7 +479,7 @@ private fun OnboardingNavigationContent(
         val home = currentRoute as? Home
         val activeHomeProfile = profiles.firstOrNull { it.id == home?.profileId }
         val homeSession = activeHomeProfile?.let { tripSessions[it.id] }
-        val homeLook = homeSession?.let { CharacterLookCatalog.find(it.lookId) }
+        val homeLook = activeHomeProfile?.let { cachedCharacterLook(homeSession, it.relationship) }
         val homeRelationship =
             activeHomeProfile?.relationship?.takeIf {
                 homeSession != null && homeSession.status == TripSessionStatus.ACTIVE &&
@@ -491,13 +491,12 @@ private fun OnboardingNavigationContent(
                 key(relationship) {
                     val cachedLook =
                         homeLook?.takeIf { relationship == homeRelationship }
-                            ?: profiles
-                                .asSequence()
-                                .filter { it.relationship == relationship }
-                                .mapNotNull { profile ->
-                                    tripSessions[profile.id]?.let { CharacterLookCatalog.find(it.lookId) }
-                                }.firstOrNull()
-                            ?: CharacterLookCatalog.looksFor(relationship).first()
+                            ?: retainedCharacterLook(
+                                profiles
+                                    .filter { it.relationship == relationship }
+                                    .map { tripSessions[it.id] },
+                                relationship,
+                            )
                     RetainedHomeCharacter(
                         relationship = relationship,
                         look = cachedLook,
