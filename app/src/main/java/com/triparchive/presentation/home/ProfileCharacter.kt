@@ -262,6 +262,7 @@ private fun rememberCharacterNode(
         DisposableEffect(sceneNodeManager, characterNode) {
             sceneNodeManager.addNode(characterNode)
             onDispose {
+                binding.disposed = true
                 sceneNodeManager.removeNode(characterNode)
                 characterNode.destroy()
             }
@@ -269,6 +270,7 @@ private fun rememberCharacterNode(
         DisposableEffect(characterNode, modelNode) {
             modelNode.parent = characterNode
             onDispose {
+                binding.disposed = true
                 modelNode.parent = null
                 modelNode.destroy()
             }
@@ -298,6 +300,7 @@ private fun rememberCharacterNode(
             var previousFrameNanos: Long? = null
             while (true) {
                 val frameNanos = withFrameNanos { it }
+                if (binding.disposed) break
                 val deltaSeconds =
                     previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f } ?: 0f
                 previousFrameNanos = frameNanos
@@ -355,6 +358,7 @@ private fun rememberCharacterNode(
         sceneNodeManager.addNode(outfitNode)
         attachAccessoryToHead(engine, attachment)
         onDispose {
+            attachment.disposed = true
             accessoryNode.parent = null
             sceneNodeManager.removeNode(outfitNode)
             outfitNode.destroy()
@@ -376,6 +380,7 @@ private fun rememberCharacterNode(
         var previousFrameNanos: Long? = null
         while (true) {
             val frameNanos = withFrameNanos { it }
+            if (attachment.disposed) break
             val deltaSeconds =
                 previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f } ?: 0f
             previousFrameNanos = frameNanos
@@ -408,6 +413,7 @@ private fun rememberCharacterNode(
 }
 
 private class AdultCompositeBinding {
+    var disposed = false
     var characterNode: RiggedModelNode? = null
     var modelNode: RiggedModelNode? = null
     var lastAppliedLookId: String? = null
@@ -568,6 +574,7 @@ private fun applyAdultCompositeLook(
 }
 
 private class AccessoryRigBinding {
+    var disposed = false
     var characterNode: RiggedModelNode? = null
     var accessoryNode: RiggedModelNode? = null
 }
