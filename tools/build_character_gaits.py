@@ -675,7 +675,7 @@ def build_adult_base(path: Path) -> None:
     glb.write()
 
 
-def add_parent_run(path: Path) -> None:
+def add_parent_run(path: Path, *, preserve_walk_arms: bool = False) -> None:
     glb = Glb(path)
     rollback_previous_build(glb)
     start = remember_build_start(glb)
@@ -708,7 +708,14 @@ def add_parent_run(path: Path) -> None:
         source_values = glb.read_float_vectors(source_sampler["output"])
         rest = tuple(node.get("rotation", [0.0, 0.0, 0.0, 1.0]))
 
-        if "upper_arm" in node_name:
+        if preserve_walk_arms and "upper_arm" in node_name:
+            # Keep the source shoulder axis and reduce swing on the smaller rig.
+            run_values = keep_quaternion_hemisphere(
+                [amplify_from_rest(source_values[0], value, 0.65) for value in source_values]
+            )
+        elif preserve_walk_arms and "forearm" in node_name:
+            continue
+        elif "upper_arm" in node_name:
             # Preserve the authored shoulder axis while increasing the swing
             # from the ~10 degree walk arc to a clear, restrained run arc.
             run_values = keep_quaternion_hemisphere(
@@ -760,6 +767,11 @@ def main() -> int:
     if len(child_paths) != 3 or len(parent_paths) != 3:
         raise SystemExit("Expected the three active child and parent outfit GLBs")
     for path in child_paths:
+        if Glb(path).doc.get("skins"):
+            # Restored child surfaces use authored skeletal clips. Morph
+            # generation would introduce a second deformation on that rig.
+            print(f"Keeping skeletal child clips: {path.name}")
+            continue
         build_morph_asset(path, "child")
     build_morph_asset(adult_composite, "adult")
     build_adult_base(adult_base)
