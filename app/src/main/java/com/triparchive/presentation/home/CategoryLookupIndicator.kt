@@ -28,7 +28,7 @@ internal fun CategoryLookupIndicator(
             CategoryLookupStatus.IDLE -> "목적지 대기 중"
             CategoryLookupStatus.LOADING -> "카테고리 조회 중"
             CategoryLookupStatus.SUCCESS -> "카테고리 조회 성공"
-            CategoryLookupStatus.FAILURE -> "카테고리 조회 실패 (무작위 배정)"
+            CategoryLookupStatus.FAILURE -> "카테고리 조회 실패"
         }
     val label =
         when (destination?.category) {

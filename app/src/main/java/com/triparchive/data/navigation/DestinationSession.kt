@@ -21,7 +21,11 @@ internal class DestinationSession {
     private val waitingArrivals = mutableListOf<Destination>()
 
     fun routeChanged(active: Boolean) {
-        mutableStates.value = state.copy(routing = active)
+        mutableStates.value =
+            state.copy(
+                routing = active,
+                confirmedDestinations = if (active) confirmedWith(state.current) else state.confirmedDestinations,
+            )
     }
 
     fun destinationSelectionChanged() {
@@ -84,7 +88,11 @@ internal class DestinationSession {
         lastDestination = destination
         currentKey = key
         lastDestinationKey = key
-        mutableStates.value = state.copy(current = destination)
+        mutableStates.value =
+            state.copy(
+                current = destination,
+                confirmedDestinations = if (state.routing) confirmedWith(destination) else state.confirmedDestinations,
+            )
     }
 
     fun categoryResolved(
@@ -105,7 +113,12 @@ internal class DestinationSession {
         val current = state.current?.updated()
         val pending = state.pendingArrival?.updated()
         if (current?.id == id) lastDestination = current
-        mutableStates.value = state.copy(current = current, pendingArrival = pending)
+        mutableStates.value =
+            state.copy(
+                current = current,
+                pendingArrival = pending,
+                confirmedDestinations = state.confirmedDestinations.map { it.updated() },
+            )
     }
 
     fun arrive(name: String) {
@@ -132,6 +145,7 @@ internal class DestinationSession {
             state.copy(
                 current = state.current?.takeUnless { it.id == arrived.id },
                 pendingArrival = state.pendingArrival ?: arrived,
+                confirmedDestinations = confirmedWith(arrived),
                 routing = if (current != null || state.current == null) false else state.routing,
             )
     }
@@ -149,8 +163,16 @@ internal class DestinationSession {
     fun pendingArrivals(): List<Destination> = listOfNotNull(state.pendingArrival) + waitingArrivals
 
     fun lookupDestinations(): List<Destination> =
-        (listOfNotNull(state.current, state.pendingArrival) + waitingArrivals)
+        (listOfNotNull(state.current, state.pendingArrival) + waitingArrivals + state.confirmedDestinations)
+            .distinctBy { it.id }
             .filter { it.categoryStatus == CategoryLookupStatus.LOADING }
+
+    private fun confirmedWith(destination: Destination?): List<Destination> =
+        if (destination == null) {
+            state.confirmedDestinations
+        } else {
+            state.confirmedDestinations.filterNot { it.id == destination.id } + destination
+        }
 
     fun createDemoArrival(destination: Destination): Destination =
         destination.copy(

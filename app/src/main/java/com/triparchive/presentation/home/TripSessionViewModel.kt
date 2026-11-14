@@ -4,7 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.triparchive.data.record.NewTripRecord
 import com.triparchive.data.record.RecordRepository
+import com.triparchive.data.trip.TripSessionRepository
+import com.triparchive.domain.navigation.CategoryLookupStatus
 import com.triparchive.domain.navigation.Destination
+import com.triparchive.domain.navigation.DestinationCategory
 import com.triparchive.domain.navigation.DestinationSource
 import com.triparchive.domain.navigation.DestinationState
 import com.triparchive.domain.navigation.ResolveDestinationCategory
@@ -13,6 +16,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -27,6 +31,7 @@ internal class TripSessionViewModel
         private val repository: RecordRepository,
         private val destinationSource: DestinationSource,
         private val resolveCategory: ResolveDestinationCategory,
+        private val tripSessions: TripSessionRepository,
     ) : ViewModel() {
         val categorySelection = CategorySelectionState()
         private val startedAt = System.currentTimeMillis()
@@ -37,13 +42,65 @@ internal class TripSessionViewModel
         private val resolvedStops = mutableMapOf<Long, TripStopDraft>()
         private val saveMutex = Mutex()
         private var saved = false
+        private val acquired = mutableSetOf<Pair<String, DestinationCategory>>()
 
-        fun startDestinationObservation(scope: CoroutineScope = viewModelScope) {
+        fun startDestinationObservation(
+            scope: CoroutineScope = viewModelScope,
+            profileId: Long? = null,
+            sessionId: String? = null,
+        ) {
             if (observation != null) return
             observation =
                 scope.launch {
-                    destinationSource.observe().collect { observedDestination.value = it }
+                    destinationSource.observe().collect { state ->
+                        observedDestination.value = state
+                        if (profileId != null && sessionId != null) {
+                            val confirmed =
+                                state.confirmedDestinations +
+                                    listOfNotNull(
+                                        state.current?.takeIf { state.routing },
+                                        state.pendingArrival,
+                                    )
+                            confirmed.distinctBy { it.id }.forEach {
+                                acquireDestinationProp(profileId, sessionId, categorySelection.apply(it))
+                            }
+                        }
+                    }
                 }
+        }
+
+        fun confirmDestination(
+            profileId: Long,
+            sessionId: String,
+            destination: Destination,
+            scope: CoroutineScope = viewModelScope,
+        ) {
+            // A map/profile transition must not cancel a confirmed manual choice's write.
+            scope.launch { acquireDestinationProp(profileId, sessionId, destination) }
+        }
+
+        suspend fun acquireDestinationProp(
+            profileId: Long,
+            sessionId: String,
+            destination: Destination,
+        ) {
+            val resolved = categorySelection.apply(destination)
+            val category = resolved.category ?: return
+            if (resolved.categoryStatus != CategoryLookupStatus.SUCCESS) return
+            val key = sessionId to category
+            if (key in acquired) return
+            // Keep the originating session ID across suspension/retries. The repository rejects
+            // a late response after finish instead of awarding it to the next trip.
+            while (true) {
+                try {
+                    if (tripSessions.acquireProp(profileId, sessionId, category)) acquired += key
+                    return
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    delay(1000)
+                }
+            }
         }
 
         private fun stop(destination: Destination): TripStopDraft? {

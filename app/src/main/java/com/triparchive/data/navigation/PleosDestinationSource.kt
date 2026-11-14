@@ -14,6 +14,7 @@ import android.util.Log
 import com.triparchive.domain.navigation.Destination
 import com.triparchive.domain.navigation.DestinationCategoryClassifier
 import com.triparchive.domain.navigation.DestinationSource
+import com.triparchive.domain.navigation.classifyWithRetry
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.awaitClose
@@ -69,11 +70,7 @@ class PleosDestinationSource
                             categoryJobs[id] =
                                 launch {
                                     val result =
-                                        classifier.classify(
-                                            destination.name,
-                                            destination.latitude,
-                                            destination.longitude,
-                                        )
+                                        classifier.classifyWithRetry(destination)
                                     post {
                                         categoryJobs.remove(id)
                                         session.categoryResolved(id, result)

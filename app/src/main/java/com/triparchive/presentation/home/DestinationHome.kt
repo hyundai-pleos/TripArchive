@@ -82,6 +82,8 @@ internal fun DestinationHome(
     saveTrip: suspend (Destination?) -> Boolean = { true },
     onDestinationCategoryChange: (DestinationCategory?) -> Unit = {},
     categorySelectionState: CategorySelectionState? = null,
+    acquiredProps: List<DestinationCategory> = emptyList(),
+    onDestinationConfirmed: (Destination) -> Unit = {},
     homeActive: Boolean = true,
 ) {
     val drivingRestricted = LocalDrivingRestricted.current
@@ -131,6 +133,13 @@ internal fun DestinationHome(
     LaunchedEffect(effectiveDestination) { selection.update(effectiveDestination) }
     val arrival = rawArrival?.let(selection::apply)
     val currentDestination = effectiveDestination.current?.let(selection::apply)
+    val latestConfirmation by rememberUpdatedState(onDestinationConfirmed)
+    LaunchedEffect(profile.id, tripSessionId, currentDestination, arrival, effectiveDestination.routing, finishing) {
+        if (!finishing) {
+            if (effectiveDestination.routing) currentDestination?.let { latestConfirmation(it) }
+            arrival?.let { latestConfirmation(it) }
+        }
+    }
     val acknowledgeArrival = {
         if (!confirm && !finishing) {
             arrival?.let(onArrival)
@@ -192,7 +201,7 @@ internal fun DestinationHome(
             onProfileClick = onProfileClick,
             onMapClick = onMapClick,
             renderCharacter = renderCharacter,
-            destinationCategory = destinationCategory,
+            destinationCategories = acquiredProps,
             drawBackground = drawBackground,
         )
         CategoryLookupIndicator(
