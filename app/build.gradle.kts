@@ -20,6 +20,8 @@ android {
         version = release(37)
     }
 
+    useLibrary("android.car", required = false)
+
     defaultConfig {
         applicationId = "com.triparchive"
         minSdk = 28
