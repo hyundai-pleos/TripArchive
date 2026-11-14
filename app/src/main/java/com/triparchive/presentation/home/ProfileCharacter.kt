@@ -53,6 +53,7 @@ internal fun ProfileCharacter(
     active: Boolean = true,
     prepare: Boolean = false,
     destinationCategory: DestinationCategory? = null,
+    destinationCategories: List<DestinationCategory> = listOfNotNull(destinationCategory),
 ) {
     if (LocalInspectionMode.current) return
 
@@ -115,7 +116,8 @@ internal fun ProfileCharacter(
         rememberMainLightNode(engine) {
             intensity = 60_000f
         }
-    val destinationPropNodes = rememberDestinationPropNodes(modelLoader, engine, sceneNodeManager, destinationCategory)
+    val destinationPropNodes =
+        rememberDestinationPropNodes(modelLoader, engine, sceneNodeManager, destinationCategories)
     val animationClock = remember { CharacterFrameClock() }
     val characterNode =
         if (look.baseAssetPath != null && look.compositeAssetPath != null) {
@@ -179,13 +181,24 @@ internal fun ProfileCharacter(
     }
 }
 
+// Slots follow acquisition order, independently of the destination category.
+internal fun destinationPropPosition(slot: Int): Position =
+    when (slot) {
+        0 -> Position(0.62f, -0.46f, 0f)
+        1 -> Position(-0.62f, -0.46f, 0f)
+        2 -> Position(1.18f, -0.46f, 0f)
+        3 -> Position(-1.18f, -0.46f, 0f)
+        else -> Position(-0.85f, -0.10f, -0.12f)
+    }
+
 @Composable
 private fun rememberDestinationPropNodes(
     modelLoader: ModelLoader,
     engine: Engine,
     sceneNodeManager: SceneNodeManager,
-    selectedCategory: DestinationCategory?,
+    selectedCategories: List<DestinationCategory>,
 ): List<RiggedModelNode> {
+    val categories = selectedCategories.distinct().take(5)
     val nodes = mutableListOf<RiggedModelNode>()
     DestinationCategory.values().forEach { category ->
         key(category) {
@@ -201,13 +214,17 @@ private fun rememberDestinationPropNodes(
                         RiggedModelNode(
                             modelInstance = modelInstance,
                             autoAnimate = false,
-                            scaleToUnits = 0.22f,
+                            scaleToUnits = 0.44f,
                             centerOrigin = Position(0f, 0f, 0f),
                         ).apply {
-                            position = Position(x = 0.5f, y = -0.35f, z = 0f)
+                            position = Position(x = 0.62f, y = -0.46f, z = 0f)
                         }
                     }
-                SideEffect { node.isVisible = selectedCategory == category }
+                SideEffect {
+                    val slot = categories.indexOf(category)
+                    node.isVisible = slot >= 0
+                    if (slot >= 0) node.position = destinationPropPosition(slot)
+                }
                 DisposableEffect(sceneNodeManager, node) {
                     sceneNodeManager.addNode(node)
                     onDispose {

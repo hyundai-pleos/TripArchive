@@ -168,7 +168,7 @@ fun DestinationHome(
             onMapClick = onMapClick,
             renderCharacter = renderCharacter,
             destinationCategory = destinationCategory,
-            background = if (drawBackground) painterResource(R.drawable.home_street_background) else null,
+            drawBackground = drawBackground,
         )
         CategoryLookupIndicator(effectiveDestination, Modifier.align(Alignment.TopCenter).padding(top = 12.dp))
         HomeDestinationSheet(

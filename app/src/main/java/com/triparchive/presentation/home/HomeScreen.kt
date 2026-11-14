@@ -13,23 +13,19 @@ import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.paint
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -56,21 +52,27 @@ fun HomeScreen(
     renderCharacter: Boolean = true,
     characterLook: CharacterLook? = null,
     modifier: Modifier = Modifier,
-    background: Painter? = painterResource(R.drawable.home_street_background),
+    drawBackground: Boolean = true,
     onMapClick: () -> Unit = {},
     destinationCategory: DestinationCategory? = null,
+    destinationCategories: List<DestinationCategory> = listOfNotNull(destinationCategory),
 ) {
     val drivingRestricted = LocalDrivingRestricted.current
     BoxWithConstraints(
         modifier
             .fillMaxSize()
-            .then(if (background == null) Modifier else Modifier.homeBackground(background))
+            .then(if (drawBackground) Modifier.homeBackground() else Modifier)
             .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout)),
         contentAlignment = Alignment.TopCenter,
     ) {
         val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
         if (renderCharacter) {
-            HomeCharacter(profile.relationship, scale, look = characterLook, destinationCategory = destinationCategory)
+            HomeCharacter(
+                profile.relationship,
+                scale,
+                look = characterLook,
+                destinationCategories = destinationCategories,
+            )
         }
 
         Row(
@@ -129,10 +131,7 @@ fun HomeScreen(
 }
 
 @Composable
-internal fun Modifier.homeBackground(painter: Painter): Modifier =
-    background(Brush.verticalGradient(listOf(Color(0xFFC9FFFF), Color.White)))
-        .paint(painter, sizeToIntrinsics = false, contentScale = ContentScale.Crop)
-        .movingRoadCenterLine()
+internal fun Modifier.homeBackground(): Modifier = movingRoadCenterLine()
 
 @Composable
 internal fun RetainedHomeCharacter(
@@ -142,6 +141,7 @@ internal fun RetainedHomeCharacter(
     active: Boolean,
     prepare: Boolean,
     destinationCategory: DestinationCategory? = null,
+    destinationCategories: List<DestinationCategory> = listOfNotNull(destinationCategory),
 ) {
     BoxWithConstraints(
         Modifier
@@ -151,7 +151,16 @@ internal fun RetainedHomeCharacter(
     ) {
         val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
         val visibility = Modifier.graphicsLayer { alpha = if (visible) 1f else 0f }
-        HomeCharacter(relationship, scale, visibility, active, prepare, look, destinationCategory)
+        HomeCharacter(
+            relationship,
+            scale,
+            visibility,
+            active,
+            prepare,
+            look,
+            destinationCategory,
+            destinationCategories,
+        )
     }
 }
 
@@ -164,18 +173,20 @@ private fun BoxWithConstraintsScope.HomeCharacter(
     prepare: Boolean = false,
     look: CharacterLook? = null,
     destinationCategory: DestinationCategory? = null,
+    destinationCategories: List<DestinationCategory> = listOfNotNull(destinationCategory),
 ) {
     ProfileCharacter(
         look = look ?: CharacterLookCatalog.looksFor(relationship).first(),
         modifier =
             Modifier
                 .align(Alignment.Center)
+                .offset(y = (-40 * scale).dp)
                 .then(modifier)
-                .width((640 * scale).dp)
-                .height((760 * scale).dp),
+                .fillMaxWidth()
+                .height(minOf((912 * scale).dp, maxWidth * 0.7f)),
         active = active,
         prepare = prepare,
-        destinationCategory = destinationCategory,
+        destinationCategories = destinationCategories,
     )
 }
 
