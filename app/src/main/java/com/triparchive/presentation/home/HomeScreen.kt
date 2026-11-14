@@ -126,9 +126,11 @@ fun HomeScreen(
     }
 }
 
+@Composable
 internal fun Modifier.homeBackground(painter: Painter): Modifier =
     background(Brush.verticalGradient(listOf(Color(0xFFC9FFFF), Color.White)))
         .paint(painter, sizeToIntrinsics = false, contentScale = ContentScale.Crop)
+        .movingRoadCenterLine()
 
 @Composable
 internal fun RetainedHomeCharacter(
