@@ -18,7 +18,7 @@ from restore_child_skinning import inverse_matrix, read_attribute
 KEY = "characterReactions"
 NAMES = ["REACTION_CALM", "REACTION_WAITING", "REACTION_JOY", "REACTION_MOVING", "REACTION_WIND"]
 # eye height, eye smile arch, mouth width, mouth height
-POSES = [(0.90, 0.0, 0.85, 0.50), (0.65, 0.0, 0.85, 0.18),
+POSES = [(0.90, 0.0, 0.85, 0.50), (0.45, -0.10, 0.82, 0.12),
          (0.32, 0.22, 1.08, 1.12), (0.82, 0.05, 0.95, 0.72),
          (0.58, 0.04, 0.90, 0.65)]
 
@@ -144,13 +144,13 @@ def build(path):
         normals = glb.read_float_vec3(prim["attributes"]["NORMAL"])
         targets = []
         ids = sorted(selected)
-        for eye_height, arch, mouth_width, mouth_height in POSES:
+        for pose_index, (eye_height, arch, mouth_width, mouth_height) in enumerate(POSES):
             delta_positions, delta_normals = [], []
             for i in ids:
                 group = selected[i]
                 center, half = pivots[group]
                 sx, sy = (mouth_width, mouth_height) if group == "mouth" else (1.0, eye_height)
-                bend = 0.0 if group == "mouth" else arch
+                bend = (0.28 if pose_index == 1 else 0.0) if group == "mouth" else arch
                 x, y, z = points[i]
                 u = (x-center[0]) / half[0]
                 q = (center[0] + sx*(x-center[0]),
