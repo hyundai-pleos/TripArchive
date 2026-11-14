@@ -40,21 +40,25 @@ object CharacterLookCatalog {
                     outfits =
                         listOf(
                             Outfit("family_1", "family_1"),
+                            Outfit("family_2", "family_2"),
                             Outfit("family_3", "family_3"),
                             Outfit("family_4", "family_4"),
+                            Outfit("family_5", "family_5"),
+                            Outfit("family_6", "family_6"),
                         ),
                     accessories = listOf(Accessory("bear_headband"), Accessory("star_cap"), Accessory("goggles")),
                 ),
             ProfileRelationship.PARTNER to
                 CharacterAssets(
                     folder = "adult",
-                    baseAssetPath = "characters/adult_wardrobe.glb",
-                    compositeAssetPath = "characters/catalog/adult/adult_composite.glb",
                     outfits =
                         listOf(
-                            Outfit("couple_1", "heart_hoodie"),
-                            Outfit("couple_2", "cream_knit"),
-                            Outfit("couple_4", "lavender_jacket"),
+                            Outfit("couple_1", "couple_1"),
+                            Outfit("couple_2", "couple_2"),
+                            Outfit("couple_3", "couple_3"),
+                            Outfit("couple_4", "couple_4"),
+                            Outfit("couple_5", "couple_5"),
+                            Outfit("couple_6", "couple_6"),
                         ),
                     accessories =
                         listOf(
@@ -70,7 +74,10 @@ object CharacterLookCatalog {
                         listOf(
                             Outfit("parent_1", "parent_1"),
                             Outfit("parent_2", "parent_2"),
+                            Outfit("parent_3", "parent_3"),
                             Outfit("parent_4", "parent_4"),
+                            Outfit("parent_5", "parent_5"),
+                            Outfit("parent_6", "parent_6"),
                         ),
                     accessories = listOf(Accessory("beret"), Accessory("sunglasses"), Accessory("flower_pin")),
                 ),

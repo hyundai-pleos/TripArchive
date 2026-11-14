@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import com.triparchive.R
 import com.triparchive.data.profile.MAX_PROFILES
 import com.triparchive.data.profile.Profile
+import com.triparchive.presentation.LocalDrivingRestricted
 
 private val AvatarColors = listOf(Color(0xFFDCEBFF), Color(0xFFFF66AF), Color(0xFF6E675A), Color(0xFF4A3CF5))
 
@@ -42,6 +43,7 @@ fun ProfileSelectionScreen(
     onSelect: (Long) -> Unit,
     onAdd: () -> Unit,
 ) {
+    val drivingRestricted = LocalDrivingRestricted.current
     BoxWithConstraints(
         Modifier.fillMaxSize().background(Color.White).safeDrawingPadding(),
         contentAlignment = Alignment.Center,
@@ -83,10 +85,11 @@ fun ProfileSelectionScreen(
                         AvatarColors[index % AvatarColors.size],
                         s,
                         false,
+                        !drivingRestricted,
                     ) { onSelect(profile.id) }
                 }
                 if (profiles.size < MAX_PROFILES) {
-                    item(key = "add") { ProfileTile("프로필 추가", Color(0xFFD0D0D0), s, true, onAdd) }
+                    item(key = "add") { ProfileTile("프로필 추가", Color(0xFFD0D0D0), s, true, !drivingRestricted, onAdd) }
                 }
             }
         }
@@ -99,13 +102,20 @@ private fun ProfileTile(
     color: Color,
     scale: Float,
     add: Boolean,
+    enabled: Boolean,
     onClick: () -> Unit,
 ) {
     Column(
         Modifier
             .width((240 * scale).dp)
             .height((304 * scale).dp)
-            .clickable(interactionSource = null, indication = null, role = Role.Button, onClick = onClick),
+            .clickable(
+                interactionSource = null,
+                indication = null,
+                enabled = enabled,
+                role = Role.Button,
+                onClick = onClick,
+            ),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(Modifier.size((240 * scale).dp).background(color, CircleShape), contentAlignment = Alignment.Center) {

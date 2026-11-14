@@ -14,6 +14,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import com.triparchive.domain.map.VisitIntensity
+import com.triparchive.presentation.LocalDrivingRestricted
 
 private val EmphasizedBorderWidth = 1.5.dp
 private val EmphasizedBorderHaloWidth = 3.dp
@@ -25,6 +26,7 @@ internal fun BoundaryCanvas(
     viewport: () -> MapViewport,
     onAction: (VisitMapAction) -> Unit,
     modifier: Modifier = Modifier,
+    interactionsEnabled: Boolean = !LocalDrivingRestricted.current,
 ) {
     val currentOnAction = rememberUpdatedState(onAction)
     val fills =
@@ -38,19 +40,21 @@ internal fun BoundaryCanvas(
                 .fillMaxSize()
                 .onSizeChanged { size ->
                     currentOnAction.value(VisitMapAction.ViewportResized(size.width.toFloat(), size.height.toFloat()))
-                }.pointerInput(Unit) {
-                    detectTransformGestures { centroid, pan, zoom, _ ->
-                        currentOnAction.value(
-                            VisitMapAction.Transform(
-                                scaleChange = zoom,
-                                panX = pan.x,
-                                panY = pan.y,
-                                centroidX = centroid.x,
-                                centroidY = centroid.y,
-                                viewportWidth = size.width.toFloat(),
-                                viewportHeight = size.height.toFloat(),
-                            ),
-                        )
+                }.pointerInput(interactionsEnabled) {
+                    if (interactionsEnabled) {
+                        detectTransformGestures { centroid, pan, zoom, _ ->
+                            currentOnAction.value(
+                                VisitMapAction.Transform(
+                                    scaleChange = zoom,
+                                    panX = pan.x,
+                                    panY = pan.y,
+                                    centroidX = centroid.x,
+                                    centroidY = centroid.y,
+                                    viewportWidth = size.width.toFloat(),
+                                    viewportHeight = size.height.toFloat(),
+                                ),
+                            )
+                        }
                     }
                 },
     ) {

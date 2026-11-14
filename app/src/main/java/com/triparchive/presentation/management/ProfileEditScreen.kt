@@ -40,6 +40,7 @@ import com.triparchive.R
 import com.triparchive.core.designsystem.Pretendard
 import com.triparchive.core.designsystem.TripArchiveTheme
 import com.triparchive.data.profile.ProfileRelationship
+import com.triparchive.presentation.LocalDrivingRestricted
 
 @Composable
 fun ProfileEditScreen(
@@ -52,6 +53,7 @@ fun ProfileEditScreen(
     onBack: () -> Unit,
     onSave: () -> Unit,
 ) {
+    val drivingRestricted = LocalDrivingRestricted.current
     BoxWithConstraints(
         Modifier.fillMaxSize().background(Color.White).safeDrawingPadding(),
         contentAlignment = Alignment.Center,
@@ -82,7 +84,7 @@ fun ProfileEditScreen(
                 BasicTextField(
                     value = nickname,
                     onValueChange = onNicknameChange,
-                    readOnly = busy,
+                    readOnly = busy || drivingRestricted,
                     singleLine = true,
                     modifier = Modifier.weight(1f).semantics { contentDescription = "닉네임 입력" },
                     textStyle =
@@ -97,7 +99,12 @@ fun ProfileEditScreen(
                     Modifier
                         .size(
                             (48 * s).dp,
-                        ).clickable(interactionSource = null, indication = null, enabled = !busy, role = Role.Button) {
+                        ).clickable(
+                            interactionSource = null,
+                            indication = null,
+                            enabled = !busy && !drivingRestricted,
+                            role = Role.Button,
+                        ) {
                             onNicknameChange("")
                         },
                     contentAlignment = Alignment.Center,
@@ -137,7 +144,7 @@ fun ProfileEditScreen(
                                 RoundedCornerShape((20 * s).dp),
                             ).selectable(
                                 selected = relationship == value,
-                                enabled = !busy,
+                                enabled = !busy && !drivingRestricted,
                                 interactionSource = null,
                                 indication = null,
                                 role = Role.RadioButton,
@@ -167,7 +174,7 @@ fun ProfileEditScreen(
                 if (busy) "저장 중…" else "프로필 수정",
                 Pink,
                 s,
-                !busy && nickname.isNotBlank(),
+                !busy && !drivingRestricted && nickname.isNotBlank(),
                 onSave,
                 Modifier.fillMaxWidth(),
             )

@@ -49,6 +49,7 @@ import com.triparchive.R
 import com.triparchive.data.profile.Profile
 import com.triparchive.domain.navigation.Destination
 import com.triparchive.domain.navigation.DestinationState
+import com.triparchive.presentation.LocalDrivingRestricted
 import com.triparchive.presentation.home.components.ArrivalDialog
 import com.triparchive.presentation.home.components.HomeDestinationSheet
 import com.triparchive.presentation.management.ActionButton
@@ -76,6 +77,7 @@ fun DestinationHome(
     simulateArrival: (Destination) -> Destination? = { null },
     saveTrip: suspend (Destination?) -> Boolean = { true },
 ) {
+    val drivingRestricted = LocalDrivingRestricted.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var destination by remember(profile.id) { mutableStateOf(DestinationState()) }
     var acknowledged by remember(profile.id) { mutableStateOf<Long?>(null) }
@@ -205,8 +207,8 @@ fun DestinationHome(
                         Text("여행 착장을 저장하지 못했어요. 다시 시도해 주세요.", color = Pink, fontSize = (24 * s).sp)
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy((30 * s).dp)) {
-                        ActionButton(if (saving) "저장 중" else "마치기", Pink, s, !saving, {
-                            if (!finishing && !saving) {
+                        ActionButton(if (saving) "저장 중" else "마치기", Pink, s, !saving && !drivingRestricted, {
+                            if (!drivingRestricted && !finishing && !saving) {
                                 saving = true
                                 saveError = false
                                 finishError = false

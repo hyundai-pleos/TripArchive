@@ -44,6 +44,7 @@ import com.triparchive.R
 import com.triparchive.core.designsystem.TripArchiveTheme
 import com.triparchive.data.profile.Profile
 import com.triparchive.data.profile.ProfileRelationship
+import com.triparchive.presentation.LocalDrivingRestricted
 
 internal val Pink = Color(0xFFFF66AF)
 internal val Ink = Color(0xFF191F28)
@@ -64,6 +65,7 @@ fun ProfileManagementScreen(
     onConfirmDelete: () -> Unit,
     onLogout: () -> Unit,
 ) {
+    val drivingRestricted = LocalDrivingRestricted.current
     BoxWithConstraints(
         Modifier.fillMaxSize().background(Color.White).safeDrawingPadding(),
         contentAlignment = Alignment.Center,
@@ -96,16 +98,40 @@ fun ProfileManagementScreen(
             }
             Spacer(Modifier.height((20 * scale).dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Action("프로필 수정", R.drawable.management_edit, Pink, scale, !busy, onEdit, Modifier.weight(1f))
-                Action("프로필 삭제", R.drawable.management_delete, LightGray, scale, !busy, onDelete, Modifier.weight(1f))
-                Action("로그아웃", R.drawable.management_logout, LightGray, scale, !busy, onLogout, Modifier.weight(1f))
+                Action(
+                    "프로필 수정",
+                    R.drawable.management_edit,
+                    Pink,
+                    scale,
+                    !busy && !drivingRestricted,
+                    onEdit,
+                    Modifier.weight(1f),
+                )
+                Action(
+                    "프로필 삭제",
+                    R.drawable.management_delete,
+                    LightGray,
+                    scale,
+                    !busy && !drivingRestricted,
+                    onDelete,
+                    Modifier.weight(1f),
+                )
+                Action(
+                    "로그아웃",
+                    R.drawable.management_logout,
+                    LightGray,
+                    scale,
+                    !busy && !drivingRestricted,
+                    onLogout,
+                    Modifier.weight(1f),
+                )
             }
             if (!showDeleteDialog && error != null) {
                 Text(error, color = Pink, fontSize = (26 * scale).sp)
             }
         }
         if (showDeleteDialog) {
-            DeleteDialog(profile.nickname, busy, error, scale, onCancelDelete, onConfirmDelete)
+            DeleteDialog(profile.nickname, busy, drivingRestricted, error, scale, onCancelDelete, onConfirmDelete)
         }
     }
 }
@@ -142,6 +168,7 @@ private fun Action(
 private fun DeleteDialog(
     nickname: String,
     busy: Boolean,
+    drivingRestricted: Boolean,
     error: String?,
     s: Float,
     onCancel: () -> Unit,
@@ -189,7 +216,14 @@ private fun DeleteDialog(
             }
             Spacer(Modifier.height((32 * s).dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy((30 * s).dp)) {
-                ActionButton(if (busy) "삭제 중…" else "삭제", Pink, s, !busy, onConfirm, Modifier.weight(1f))
+                ActionButton(
+                    if (busy) "삭제 중…" else "삭제",
+                    Pink,
+                    s,
+                    !busy && !drivingRestricted,
+                    onConfirm,
+                    Modifier.weight(1f),
+                )
                 ActionButton("취소", LightGray, s, !busy, onCancel, Modifier.weight(1f))
             }
         }

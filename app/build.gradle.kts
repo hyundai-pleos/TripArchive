@@ -32,6 +32,8 @@ android {
         version = release(37)
     }
 
+    useLibrary("android.car", required = false)
+
     defaultConfig {
         applicationId = "com.triparchive"
         buildConfigField("String", "KAKAO_REST_API_KEY", "\"$kakaoKey\"")
