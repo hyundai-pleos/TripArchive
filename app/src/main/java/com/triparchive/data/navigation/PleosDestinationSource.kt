@@ -55,7 +55,11 @@ class PleosDestinationSource(
                     override fun onDestinationInfo(destinationInfo: DestinationInfo) =
                         post {
                             val name = destinationInfo.name
-                            if (name != arrivedName) state = state.destinationChanged(name)
+                            if (name != arrivedName) {
+                                // The current Pleos adapter passes the destination name only.
+                                // Feature #23's category provider can populate this boundary later.
+                                state = state.destinationChanged(name, category = null)
+                            }
                         }
 
                     override fun onError(errorCode: NaviErrorCode) = post { state = DestinationState() }

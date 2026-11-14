@@ -15,12 +15,14 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.test.platform.app.InstrumentationRegistry
 import com.triparchive.core.designsystem.TripArchiveTheme
+import com.triparchive.data.navigation.DestinationCategory
 import com.triparchive.data.navigation.DestinationState
 import com.triparchive.data.profile.Profile
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.presentation.home.DestinationHome
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
@@ -199,6 +201,42 @@ class DestinationHomeTest {
         val pixels = compose.onNodeWithTag("home-surface").captureToImage().toPixelMap()
         assertEquals(1f, pixels[pixels.width / 2, pixels.height / 10].red, 0.02f)
         compose.runOnIdle { assertEquals(1, finished) }
+    }
+
+    @Test
+    fun arrivalCategoryDoesNotFallBackToTheNextActiveDestination() {
+        val state =
+            MutableStateFlow(
+                DestinationState(
+                    name = "강릉아산병원",
+                    arrived = "성심당 DCC점",
+                    routing = true,
+                    category = DestinationCategory.HOSPITAL,
+                    arrivedCategory = null,
+                ),
+            )
+        var renderedCategory: DestinationCategory? = DestinationCategory.MART
+        compose.setContent {
+            TripArchiveTheme {
+                DestinationHome(
+                    profile = Profile(1, "준", ProfileRelationship.PARENT),
+                    onProfileClick = {},
+                    onFinish = {},
+                    source = state,
+                    renderCharacter = false,
+                    onDestinationCategoryChange = { renderedCategory = it },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.runOnIdle { assertNull(renderedCategory) }
+        compose.onNodeWithText("병원").assertDoesNotExist()
+
+        compose.runOnIdle {
+            state.value = DestinationState("강릉아산병원", routing = true, category = DestinationCategory.HOSPITAL)
+        }
+        compose.runOnIdle { assertEquals(DestinationCategory.HOSPITAL, renderedCategory) }
+        compose.onNodeWithText("병원").assertIsDisplayed()
     }
 
     private fun captureIfRequested(

@@ -17,6 +17,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -30,6 +32,7 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.triparchive.R
 import com.triparchive.data.character.CharacterLookCatalog
+import com.triparchive.data.navigation.DestinationCategory
 import com.triparchive.data.profile.MAX_PROFILES
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.data.trip.TripSessionStatus
@@ -218,6 +221,7 @@ private fun OnboardingNavigationContent(
     }
     val currentRoute = backStack.lastOrNull()
     val homeProfileId = (currentRoute as? Home)?.profileId
+    val retainedDestinationCategory = remember(homeProfileId) { mutableStateOf<DestinationCategory?>(null) }
     LaunchedEffect(homeProfileId, profiles) {
         profiles.firstOrNull { it.id == homeProfileId }?.let(selectionViewModel::openOrResumeTrip)
     }
@@ -282,7 +286,7 @@ private fun OnboardingNavigationContent(
                                 session?.takeIf {
                                     it.status == TripSessionStatus.ACTIVE &&
                                         it.relationship == profile.relationship.name &&
-                                        CharacterLookCatalog.find(it.lookId) != null
+                                        cachedCharacterLook(it, profile.relationship) != null
                                 }
                             if (validSession != null) {
                                 DestinationHome(
@@ -317,6 +321,9 @@ private fun OnboardingNavigationContent(
                                     },
                                     renderCharacter = false,
                                     drawBackground = false,
+                                    onDestinationCategoryChange = { category ->
+                                        if (backStack.lastOrNull() == home) retainedDestinationCategory.value = category
+                                    },
                                 )
                             } else if (profile.id in tripSessionErrors) {
                                 Column(
@@ -472,7 +479,7 @@ private fun OnboardingNavigationContent(
         val home = currentRoute as? Home
         val activeHomeProfile = profiles.firstOrNull { it.id == home?.profileId }
         val homeSession = activeHomeProfile?.let { tripSessions[it.id] }
-        val homeLook = homeSession?.let { CharacterLookCatalog.find(it.lookId) }
+        val homeLook = activeHomeProfile?.let { cachedCharacterLook(homeSession, it.relationship) }
         val homeRelationship =
             activeHomeProfile?.relationship?.takeIf {
                 homeSession != null && homeSession.status == TripSessionStatus.ACTIVE &&
@@ -484,19 +491,22 @@ private fun OnboardingNavigationContent(
                 key(relationship) {
                     val cachedLook =
                         homeLook?.takeIf { relationship == homeRelationship }
-                            ?: profiles
-                                .asSequence()
-                                .filter { it.relationship == relationship }
-                                .mapNotNull { profile ->
-                                    tripSessions[profile.id]?.let { CharacterLookCatalog.find(it.lookId) }
-                                }.firstOrNull()
-                            ?: CharacterLookCatalog.looksFor(relationship).first()
+                            ?: retainedCharacterLook(
+                                profiles
+                                    .filter { it.relationship == relationship }
+                                    .map { tripSessions[it.id] },
+                                relationship,
+                            )
                     RetainedHomeCharacter(
                         relationship = relationship,
                         look = cachedLook,
                         visible = relationship == homeRelationship,
                         active = relationship == homeRelationship,
                         prepare = onProfileList,
+                        destinationCategory =
+                            retainedDestinationCategory.value.takeIf {
+                                currentRoute is Home && relationship == homeRelationship
+                            },
                     )
                 }
             }
