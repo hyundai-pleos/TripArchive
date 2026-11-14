@@ -57,6 +57,8 @@ internal fun ProfileCharacter(
     active: Boolean = true,
     prepare: Boolean = false,
     destinationCategory: DestinationCategory? = null,
+    destinationCategories: List<DestinationCategory> = listOfNotNull(destinationCategory),
+    compact: Boolean = false,
 ) {
     if (LocalInspectionMode.current) return
 
@@ -121,7 +123,9 @@ internal fun ProfileCharacter(
         rememberMainLightNode(engine) {
             intensity = 60_000f
         }
-    val destinationPropNodes = rememberDestinationPropNodes(modelLoader, engine, sceneNodeManager, destinationCategory)
+    val destinationPropNodes =
+        rememberDestinationPropNodes(modelLoader, engine, sceneNodeManager, destinationCategories, compact)
+    val animationClock = remember { CharacterFrameClock() }
     val characterNode =
         if (look.baseAssetPath != null && look.compositeAssetPath != null) {
             rememberCharacterNode(
@@ -132,6 +136,7 @@ internal fun ProfileCharacter(
                 motionPresentation = motionPresentation,
                 animate = active || (prepare && !prepared),
                 onReady = { modelAttached = true },
+                animationClock = animationClock,
             )
         } else {
             key(look.id) {
@@ -143,13 +148,14 @@ internal fun ProfileCharacter(
                     motionPresentation = motionPresentation,
                     animate = active || (prepare && !prepared),
                     onReady = { modelAttached = true },
+                    animationClock = animationClock,
                 )
             }
         }
     val sceneNodes = destinationPropNodes + listOfNotNull(characterNode)
 
     // Recreate only the TextureView and renderer after resize; the scene graph and model nodes stay alive.
-    key(configuration.screenWidthDp, configuration.screenHeightDp) {
+    key(configuration.screenWidthDp, configuration.screenHeightDp, compact) {
         SceneView(
             modifier = modifier,
             surfaceType = SurfaceType.TextureSurface,
@@ -169,6 +175,7 @@ internal fun ProfileCharacter(
             lifecycle = renderLifecycle,
             onFrame = { frameTimeNanos ->
                 if (modelAttached) prepared = true
+                animationClock.onFrame?.invoke(frameTimeNanos)
                 sceneNodes.forEach { it.onFrame(frameTimeNanos) }
             },
         )
@@ -182,13 +189,38 @@ internal fun ProfileCharacter(
     }
 }
 
+// Slots follow acquisition order, independently of the destination category.
+internal fun destinationPropPosition(
+    slot: Int,
+    compact: Boolean = false,
+): Position =
+    if (compact) {
+        when (slot) {
+            0 -> Position(0.55f, -0.46f, 0f)
+            1 -> Position(-0.55f, -0.46f, 0f)
+            2 -> Position(0.70f, -0.02f, 0f)
+            3 -> Position(-0.70f, -0.02f, 0f)
+            else -> Position(-0.65f, 0.43f, -0.12f)
+        }
+    } else {
+        when (slot) {
+            0 -> Position(0.62f, -0.46f, 0f)
+            1 -> Position(-0.62f, -0.46f, 0f)
+            2 -> Position(1.18f, -0.46f, 0f)
+            3 -> Position(-1.18f, -0.46f, 0f)
+            else -> Position(-0.85f, -0.10f, -0.12f)
+        }
+    }
+
 @Composable
 private fun rememberDestinationPropNodes(
     modelLoader: ModelLoader,
     engine: Engine,
     sceneNodeManager: SceneNodeManager,
-    selectedCategory: DestinationCategory?,
+    selectedCategories: List<DestinationCategory>,
+    compact: Boolean,
 ): List<RiggedModelNode> {
+    val categories = selectedCategories.distinct().take(5)
     val nodes = mutableListOf<RiggedModelNode>()
     DestinationCategory.values().forEach { category ->
         key(category) {
@@ -204,13 +236,19 @@ private fun rememberDestinationPropNodes(
                         RiggedModelNode(
                             modelInstance = modelInstance,
                             autoAnimate = false,
-                            scaleToUnits = 0.22f,
+                            scaleToUnits = 0.44f,
                             centerOrigin = Position(0f, 0f, 0f),
                         ).apply {
-                            position = Position(x = 0.5f, y = -0.35f, z = 0f)
+                            position = Position(x = 0.62f, y = -0.46f, z = 0f)
                         }
                     }
-                SideEffect { node.isVisible = selectedCategory == category }
+                SideEffect {
+                    val slot = categories.indexOf(category)
+                    node.isVisible = slot >= 0
+                    if (slot >= 0) node.position = destinationPropPosition(slot, compact)
+                    // Keep prop size stable while the compact viewport enlarges the character.
+                    node.scaleToUnitCube(if (compact) 0.44f / 1.25f else 0.44f)
+                }
                 DisposableEffect(sceneNodeManager, node) {
                     sceneNodeManager.addNode(node)
                     onDispose {
@@ -234,6 +272,7 @@ private fun rememberCharacterNode(
     motionPresentation: CharacterMotionPresentation,
     animate: Boolean,
     onReady: () -> Unit,
+    animationClock: CharacterFrameClock,
 ): RiggedModelNode? {
     val baseAssetPath = look.baseAssetPath
     val compositeAssetPath = look.compositeAssetPath
@@ -292,46 +331,53 @@ private fun rememberCharacterNode(
         SideEffect(onReady)
         val latestMotionPresentation by rememberUpdatedState(motionPresentation)
         val reactionBinding = remember(engine, modelNode) { CharacterReactionBinding(engine, modelNode) }
-        LaunchedEffect(binding, reactionBinding, animate) {
-            if (!animate) return@LaunchedEffect
+        DisposableEffect(binding, reactionBinding, animate, animationClock) {
             val timeline = CharacterAnimationTimeline()
             val reactions = CharacterReactionReducer()
             var lastReaction: Pair<CharacterReaction, CharacterReactionSpeedBand>? = null
             var previousFrameNanos: Long? = null
-            while (true) {
-                val frameNanos = withFrameNanos { it }
-                if (binding.disposed || !isRequestModelInstanceAlive(characterNode.modelInstance) ||
-                    !isRequestModelInstanceAlive(modelNode.modelInstance)
-                ) {
-                    break
+            val onFrame: ((Long) -> Unit)? =
+                if (!animate) {
+                    null
+                } else {
+                    frame@{ frameNanos ->
+                        if (binding.disposed || !isRequestModelInstanceAlive(characterNode.modelInstance) ||
+                            !isRequestModelInstanceAlive(modelNode.modelInstance)
+                        ) {
+                            return@frame
+                        }
+                        val deltaSeconds =
+                            previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f } ?: 0f
+                        previousFrameNanos = frameNanos
+                        val presentation = latestMotionPresentation
+                        val frame =
+                            timeline.advance(
+                                presentation.animationClip,
+                                presentation.targetAnimationSpeed,
+                                deltaSeconds,
+                            )
+                        applyCharacterAnimationFrame(binding.characterNode, frame, engine)
+                        applyCharacterAnimationFrame(binding.modelNode, frame, engine)
+                        val reactionFrame =
+                            reactions.update(
+                                presentation.speedKph,
+                                SystemClock.elapsedRealtime(),
+                                presentation.stationaryInPark,
+                            )
+                        reactionBinding.apply(reactionFrame)
+                        val state = reactionFrame.reaction to reactionFrame.speedBand
+                        if (state != lastReaction) {
+                            Log.i(
+                                "CharacterReaction",
+                                "look=${look.id} reaction=${state.first} band=${state.second} speed=${presentation.speedKph}",
+                            )
+                            lastReaction = state
+                        }
+                    }
                 }
-                val deltaSeconds =
-                    previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f } ?: 0f
-                previousFrameNanos = frameNanos
-                val presentation = latestMotionPresentation
-                val frame =
-                    timeline.advance(
-                        presentation.animationClip,
-                        presentation.targetAnimationSpeed,
-                        deltaSeconds,
-                    )
-                applyCharacterAnimationFrame(binding.characterNode, frame, engine)
-                applyCharacterAnimationFrame(binding.modelNode, frame, engine)
-                val reactionFrame =
-                    reactions.update(
-                        presentation.speedKph,
-                        SystemClock.elapsedRealtime(),
-                        presentation.stationaryInPark,
-                    )
-                reactionBinding.apply(reactionFrame)
-                val state = reactionFrame.reaction to reactionFrame.speedBand
-                if (state != lastReaction) {
-                    Log.i(
-                        "CharacterReaction",
-                        "look=${look.id} reaction=${state.first} band=${state.second} speed=${presentation.speedKph}",
-                    )
-                    lastReaction = state
-                }
+            animationClock.onFrame = onFrame
+            onDispose {
+                if (animationClock.onFrame === onFrame) animationClock.onFrame = null
             }
         }
         return characterNode
@@ -376,44 +422,63 @@ private fun rememberCharacterNode(
     }
     val latestMotionPresentation by rememberUpdatedState(motionPresentation)
     val reactionBinding = remember(engine, outfitNode) { CharacterReactionBinding(engine, outfitNode) }
-    LaunchedEffect(attachment, reactionBinding, animate) {
-        if (!animate) return@LaunchedEffect
+    DisposableEffect(attachment, reactionBinding, animate, animationClock) {
         val timeline = CharacterAnimationTimeline()
         val reactions = CharacterReactionReducer()
         var lastReaction: Pair<CharacterReaction, CharacterReactionSpeedBand>? = null
         var previousFrameNanos: Long? = null
-        while (true) {
-            val frameNanos = withFrameNanos { it }
-            if (attachment.disposed || !isRequestModelInstanceAlive(outfitNode.modelInstance)) break
-            val deltaSeconds =
-                previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f } ?: 0f
-            previousFrameNanos = frameNanos
-            val presentation = latestMotionPresentation
-            val frame =
-                timeline.advance(
-                    presentation.animationClip,
-                    presentation.targetAnimationSpeed,
-                    deltaSeconds,
-                )
-            applyCharacterAnimationFrame(attachment.characterNode, frame, engine)
-            val reactionFrame =
-                reactions.update(
-                    presentation.speedKph,
-                    SystemClock.elapsedRealtime(),
-                    presentation.stationaryInPark,
-                )
-            reactionBinding.apply(reactionFrame)
-            val state = reactionFrame.reaction to reactionFrame.speedBand
-            if (state != lastReaction) {
-                Log.i(
-                    "CharacterReaction",
-                    "look=${look.id} reaction=${state.first} band=${state.second} speed=${presentation.speedKph}",
-                )
-                lastReaction = state
+        val onFrame: ((Long) -> Unit)? =
+            if (!animate) {
+                null
+            } else {
+                frame@{ frameNanos ->
+                    if (attachment.disposed ||
+                        !isRequestModelInstanceAlive(outfitNode.modelInstance) ||
+                        !isRequestModelInstanceAlive(accessoryNode.modelInstance)
+                    ) {
+                        return@frame
+                    }
+                    val deltaSeconds =
+                        previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f } ?: 0f
+                    previousFrameNanos = frameNanos
+                    val presentation = latestMotionPresentation
+                    val frame =
+                        timeline.advance(
+                            presentation.animationClip,
+                            presentation.targetAnimationSpeed,
+                            deltaSeconds,
+                        )
+                    applyCharacterAnimationFrame(attachment.characterNode, frame, engine)
+                    val reactionFrame =
+                        reactions.update(
+                            presentation.speedKph,
+                            SystemClock.elapsedRealtime(),
+                            presentation.stationaryInPark,
+                        )
+                    reactionBinding.apply(reactionFrame)
+                    val state = reactionFrame.reaction to reactionFrame.speedBand
+                    if (state != lastReaction) {
+                        Log.i(
+                            "CharacterReaction",
+                            "look=${look.id} reaction=${state.first} band=${state.second} speed=${presentation.speedKph}",
+                        )
+                        lastReaction = state
+                    }
+                }
             }
+        animationClock.onFrame = onFrame
+        onDispose {
+            if (animationClock.onFrame === onFrame) animationClock.onFrame = null
         }
     }
     return outfitNode
+}
+
+// Submit bone/morph updates only when SceneView renders. A Compose frame loop keeps
+// running while a permission dialog pauses the renderer and can overflow Filament's
+// command buffer before beginFrame/endFrame can drain it.
+private class CharacterFrameClock {
+    var onFrame: ((Long) -> Unit)? = null
 }
 
 private class AdultCompositeBinding {

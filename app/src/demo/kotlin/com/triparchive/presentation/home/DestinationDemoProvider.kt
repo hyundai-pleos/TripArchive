@@ -43,14 +43,7 @@ internal fun rememberDestinationDemoInput(
                                     current =
                                         visit.copy(
                                             category = category,
-                                            categoryStatus =
-                                                if (category ==
-                                                    null
-                                                ) {
-                                                    CategoryLookupStatus.IDLE
-                                                } else {
-                                                    CategoryLookupStatus.SUCCESS
-                                                },
+                                            categoryStatus = CategoryLookupStatus.SUCCESS,
                                         ),
                                     routing = true,
                                 )

@@ -10,6 +10,7 @@ import ai.pleos.playground.navi.helper.listener.NaviHelperEventListener
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import com.triparchive.domain.navigation.Destination
 import com.triparchive.domain.navigation.DestinationCategoryClassifier
 import com.triparchive.domain.navigation.DestinationSource
@@ -40,6 +41,7 @@ class PleosDestinationSource
                 val handler = Handler(Looper.getMainLooper())
                 val helper = NaviHelper(context)
                 var closed = false
+                var routeCancelled = false
                 val categoryJobs = mutableMapOf<Long, Job>()
 
                 fun post(action: () -> Unit) {
@@ -54,7 +56,7 @@ class PleosDestinationSource
                     runCatching {
                         helper.getRouteStateInfo()
                         helper.getDestinationInfo()
-                    }.onFailure { post { session.clearCurrent() } }
+                    }.onFailure { Log.w(TAG, "Unable to refresh navigation state", it) }
                 }
 
                 fun syncLookups() {
@@ -93,22 +95,31 @@ class PleosDestinationSource
                     object : NaviHelperEventListener {
                         override fun onRouteStateInfo(routeStateInfo: RouteStateInfo) =
                             post {
-                                session.routeChanged(
-                                    routeStateInfo.naviMode == NaviMode.ROUTE_GUIDING ||
-                                        routeStateInfo.naviMode == NaviMode.SIMULATION_GUIDING,
-                                )
+                                if (!routeCancelled) {
+                                    session.routeChanged(
+                                        routeStateInfo.naviMode == NaviMode.ROUTE_GUIDING ||
+                                            routeStateInfo.naviMode == NaviMode.SIMULATION_GUIDING,
+                                    )
+                                }
                             }
 
                         override fun onDestinationInfo(destinationInfo: DestinationInfo) =
                             post {
-                                session.destinationChanged(
-                                    destinationInfo.name,
-                                    destinationInfo.latitude,
-                                    destinationInfo.longitude,
-                                )
+                                if (!routeCancelled && destinationInfo.name.isNotBlank()) {
+                                    session.destinationChanged(
+                                        destinationInfo.name,
+                                        destinationInfo.latitude,
+                                        destinationInfo.longitude,
+                                        poiId = destinationInfo.poiId,
+                                        poiProvider = destinationInfo.poiProvider,
+                                        poiSubId = destinationInfo.poiSubId,
+                                    )
+                                }
                             }
 
-                        override fun onError(errorCode: NaviErrorCode) = post { session.clearCurrent() }
+                        override fun onError(errorCode: NaviErrorCode) {
+                            Log.w(TAG, "Navigation error: $errorCode")
+                        }
 
                         override fun onDestinationChanged() {
                             post { session.destinationSelectionChanged() }
@@ -117,6 +128,7 @@ class PleosDestinationSource
 
                         override fun onRoutingCompleted() {
                             post {
+                                routeCancelled = false
                                 session.routeStarted()
                             }
                             refresh()
@@ -128,21 +140,22 @@ class PleosDestinationSource
 
                         override fun onRouteCancelled() =
                             post {
+                                routeCancelled = true
                                 session.clearCurrent()
                             }
 
                         override fun onDestinationArrived(destinationArrivedInfo: DestinationArrivedInfo) =
                             post {
-                                session.arrive(destinationArrivedInfo.name)
+                                if (!routeCancelled) session.arrive(destinationArrivedInfo.name)
                             }
                     }
                 helper.addListener(listener)
                 runCatching {
                     helper.initialize(
                         onConnected = ::refresh,
-                        onFailed = { post { session.clearCurrent() } },
+                        onFailed = { Log.w(TAG, "Unable to connect to navigation") },
                     )
-                }.onFailure { post { session.clearCurrent() } }
+                }.onFailure { Log.w(TAG, "Unable to initialize navigation", it) }
                 val refreshJob =
                     launch {
                         while (true) {
@@ -161,3 +174,5 @@ class PleosDestinationSource
                 }
             }
     }
+
+private const val TAG = "PleosDestinationSource"

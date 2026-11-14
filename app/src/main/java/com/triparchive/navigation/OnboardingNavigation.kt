@@ -227,7 +227,6 @@ private fun OnboardingNavigationContent(
     }
     val onProfileList = currentRoute == Profiles
     val inProfileFlow = Profiles in backStack
-    val homeBackground = if (inProfileFlow) painterResource(R.drawable.home_street_background) else null
     // Keep each profile's scene alive while the profile list stays in the back stack.
     val characterRelationships =
         if (inProfileFlow) profiles.map { it.relationship }.toSet() else emptySet()
@@ -235,8 +234,8 @@ private fun OnboardingNavigationContent(
         hasCharacters = characterRelationships.isNotEmpty(),
         modifier = modifier,
     ) { resourcesReady ->
-        if (currentRoute is Home && homeBackground != null) {
-            Box(Modifier.fillMaxSize().zIndex(-2f).homeBackground(homeBackground))
+        if (currentRoute is Home && inProfileFlow) {
+            Box(Modifier.fillMaxSize().zIndex(-2f).homeBackground())
         }
         NavDisplay(
             backStack = backStack,
@@ -289,8 +288,13 @@ private fun OnboardingNavigationContent(
                                         cachedCharacterLook(it, profile.relationship) != null
                                 }
                             if (validSession != null) {
+                                LaunchedEffect(tripSessionViewModel) {
+                                    tripSessionViewModel.startDestinationObservation()
+                                }
                                 DestinationHome(
                                     profile = profile,
+                                    categorySelectionState = tripSessionViewModel.categorySelection,
+                                    homeActive = backStack.lastOrNull() == home,
                                     onProfileClick = {
                                         if (!drivingRestricted &&
                                             backStack.lastOrNull() == home

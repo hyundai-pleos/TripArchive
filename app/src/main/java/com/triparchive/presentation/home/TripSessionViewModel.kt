@@ -1,14 +1,21 @@
 package com.triparchive.presentation.home
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.triparchive.data.record.NewTripRecord
 import com.triparchive.data.record.RecordRepository
 import com.triparchive.domain.navigation.Destination
 import com.triparchive.domain.navigation.DestinationSource
+import com.triparchive.domain.navigation.DestinationState
 import com.triparchive.domain.navigation.ResolveDestinationCategory
 import com.triparchive.domain.record.TripStopDraft
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import javax.inject.Inject
 
@@ -21,25 +28,37 @@ internal class TripSessionViewModel
         private val destinationSource: DestinationSource,
         private val resolveCategory: ResolveDestinationCategory,
     ) : ViewModel() {
+        val categorySelection = CategorySelectionState()
         private val startedAt = System.currentTimeMillis()
-        val destination = destinationSource.observe()
+        private val observedDestination = MutableStateFlow(DestinationState())
+        val destination = observedDestination.asStateFlow()
+        private var observation: Job? = null
         private val arrivals = linkedMapOf<Long, TripStopDraft>()
         private val resolvedStops = mutableMapOf<Long, TripStopDraft>()
         private val saveMutex = Mutex()
         private var saved = false
 
+        fun startDestinationObservation(scope: CoroutineScope = viewModelScope) {
+            if (observation != null) return
+            observation =
+                scope.launch {
+                    destinationSource.observe().collect { observedDestination.value = it }
+                }
+        }
+
         private fun stop(destination: Destination): TripStopDraft? {
-            val name = destination.name.trim().takeIf(String::isNotEmpty) ?: return null
-            val existing = resolvedStops[destination.id]
-            if (existing != null &&
-                (destination.category == null || existing.category == destination.category)
-            ) {
-                return existing
-            }
-            return TripStopDraft(
-                name,
-                resolveCategory(destination.category),
-            ).also { resolvedStops[destination.id] = it }
+            val chosen = categorySelection.apply(destination)
+            val name = chosen.name.trim().takeIf(String::isNotEmpty) ?: return null
+            val existing = resolvedStops[chosen.id]
+            val category =
+                when {
+                    categorySelection.hasDecision(chosen.id) -> chosen.category
+                    chosen.category != null -> chosen.category
+                    existing != null -> existing.category
+                    else -> resolveCategory(null)
+                }
+            if (existing != null && existing.category == category && existing.placeName == name) return existing
+            return TripStopDraft(name, category).also { resolvedStops[chosen.id] = it }
         }
 
         fun recordArrival(destination: Destination) {

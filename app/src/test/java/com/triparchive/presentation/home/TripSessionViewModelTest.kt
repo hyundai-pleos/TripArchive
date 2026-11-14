@@ -5,14 +5,23 @@ import com.triparchive.data.record.NewTripRecord
 import com.triparchive.data.record.RecordRepository
 import com.triparchive.data.record.TripRecord
 import com.triparchive.data.record.TripRecordDetail
+import com.triparchive.domain.navigation.CategoryLookupResult
+import com.triparchive.domain.navigation.CategoryLookupStatus
 import com.triparchive.domain.navigation.Destination
 import com.triparchive.domain.navigation.DestinationCategory
 import com.triparchive.domain.navigation.DestinationSource
 import com.triparchive.domain.navigation.DestinationState
 import com.triparchive.domain.navigation.ResolveDestinationCategory
+import com.triparchive.presentation.home.components.CategoryChoice
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -231,6 +240,91 @@ class TripSessionViewModelTest {
             assertTrue(source.pendingArrivals().isEmpty())
         }
 
+    @Test
+    fun manualCategoryOverridesLaterClassificationForRecordedArrival() =
+        runBlocking {
+            val repository = FakeRecords()
+            val session = TripSessionViewModel(repository, FakeDestinationSource(), ResolveDestinationCategory())
+            val destination = place(8, "시장").copy(categoryStatus = CategoryLookupStatus.SUCCESS)
+            session.categorySelection.update(DestinationState(current = destination, routing = true))
+            session.categorySelection.select(CategoryChoice.SCHOOL)
+            session.categorySelection.confirm()
+            session.recordArrival(destination.copy(category = DestinationCategory.HOSPITAL))
+            assertTrue(session.save(1, null))
+            val saved = repository.saved.single().second
+            assertEquals(DestinationCategory.SCHOOL, saved.stops.single().category)
+        }
+
+    @Test
+    fun manualCategoryIsAppliedWhenFinishingWithSourcePendingArrival() =
+        runBlocking {
+            val repository = FakeRecords()
+            val source = FakeDestinationSource()
+            val session = TripSessionViewModel(repository, source, ResolveDestinationCategory())
+            source.session.routeStarted()
+            source.session.destinationChanged("시장", 37.0, 127.0)
+            val current = source.session.state.current!!
+            val id = current.id
+            source.session.categoryResolved(id, CategoryLookupResult(null, CategoryLookupStatus.SUCCESS))
+            session.categorySelection.update(source.session.state)
+            session.categorySelection.select(CategoryChoice.FOOD)
+            session.categorySelection.confirm()
+            source.session.arrive("시장")
+            source.session.categoryResolved(
+                id,
+                CategoryLookupResult(DestinationCategory.HOSPITAL, CategoryLookupStatus.SUCCESS),
+            )
+            assertTrue(session.save(1, null))
+            val saved = repository.saved.single().second
+            assertEquals(DestinationCategory.FOOD, saved.stops.single().category)
+        }
+
+    @Test
+    fun otherKeepsAnUnclassifiedCategoryAcrossSaveRetries() =
+        runBlocking {
+            val repository = FakeRecords().apply { shouldFail = true }
+            val session = TripSessionViewModel(repository, FakeDestinationSource(), ResolveDestinationCategory())
+            val destination = place(8, "장소").copy(categoryStatus = CategoryLookupStatus.SUCCESS)
+            session.categorySelection.update(DestinationState(current = destination, routing = true))
+            session.categorySelection.select(CategoryChoice.OTHER)
+            session.categorySelection.confirm()
+            val lateClassification = destination.copy(category = DestinationCategory.HOSPITAL)
+            assertFalse(session.save(1, lateClassification))
+            repository.shouldFail = false
+            assertTrue(session.save(1, lateClassification))
+            val attempted = repository.attempts.first()
+            val saved = repository.saved.single().second
+            assertEquals(attempted.stops, saved.stops)
+            assertNull(saved.stops.single().category)
+        }
+
+    @Test
+    fun destinationSourceRemainsObservedUntilTheHomeSessionScopeEnds() {
+        val source = FakeDestinationSource()
+        val session = TripSessionViewModel(FakeRecords(), source, ResolveDestinationCategory())
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        try {
+            session.startDestinationObservation(scope)
+            session.startDestinationObservation(scope)
+            assertEquals(1, source.subscriptions)
+            source.session.routeStarted()
+            source.session.destinationChanged("시장", 37.0, 127.0)
+            val active = session.destination.value.current
+            assertEquals("시장", active?.name)
+            source.session.arrive("시장")
+            val pending = session.destination.value.pendingArrival
+            assertEquals("시장", pending?.name)
+            source.session.acknowledgeArrival(pending!!.id)
+            assertNull(session.destination.value.pendingArrival)
+            source.session.routeStarted()
+            source.session.destinationChanged("병원", 37.1, 127.1)
+            source.session.clearCurrent()
+            assertNull(session.destination.value.current)
+        } finally {
+            scope.cancel()
+        }
+    }
+
     private fun place(
         id: Long,
         name: String,
@@ -240,8 +334,13 @@ class TripSessionViewModelTest {
     private class FakeDestinationSource : DestinationSource {
         val session = DestinationSession()
         val acknowledged = mutableListOf<Long>()
+        var subscriptions = 0
 
-        override fun observe() = session.states
+        override fun observe() =
+            flow {
+                subscriptions++
+                emitAll(session.states)
+            }
 
         override fun pendingArrivals() = session.pendingArrivals()
 
