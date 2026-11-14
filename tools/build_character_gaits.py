@@ -145,6 +145,20 @@ class Glb:
         base = view.get("byteOffset", 0) + accessor.get("byteOffset", 0)
         return [struct.unpack_from("<f", self.binary, base + stride * i)[0] for i in range(accessor["count"])]
 
+    def read_float_vectors(self, accessor_index: int) -> list[tuple[float, ...]]:
+        accessor = self.doc["accessors"][accessor_index]
+        if accessor["componentType"] != 5126 or accessor["type"] not in ("VEC3", "VEC4"):
+            raise ValueError(f"Expected FLOAT VEC3/VEC4 accessor {accessor_index}")
+        components = 3 if accessor["type"] == "VEC3" else 4
+        view = self.doc["bufferViews"][accessor["bufferView"]]
+        stride = view.get("byteStride", components * 4)
+        base = view.get("byteOffset", 0) + accessor.get("byteOffset", 0)
+        format_string = "<" + "f" * components
+        return [
+            struct.unpack_from(format_string, self.binary, base + stride * i)
+            for i in range(accessor["count"])
+        ]
+
     def write(self) -> None:
         self.doc["buffers"][0]["byteLength"] = len(self.binary)
         json_chunk = json.dumps(self.doc, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
@@ -309,6 +323,76 @@ def quaternion_for_sway(phase: float, strength: float) -> list[float]:
     cx, sx = math.cos(pitch / 2), math.sin(pitch / 2)
     cz, sz = math.cos(roll / 2), math.sin(roll / 2)
     return [sx * cz, -sx * sz, cx * sz, cx * cz]
+
+
+def quat_normalize(q: tuple[float, ...] | list[float]) -> tuple[float, float, float, float]:
+    length = math.sqrt(sum(value * value for value in q))
+    if length < 1e-10:
+        return (0.0, 0.0, 0.0, 1.0)
+    return tuple(value / length for value in q)  # type: ignore[return-value]
+
+
+def quat_multiply(a: tuple[float, ...], b: tuple[float, ...]) -> tuple[float, float, float, float]:
+    ax, ay, az, aw = a
+    bx, by, bz, bw = b
+    return quat_normalize((
+        aw * bx + ax * bw + ay * bz - az * by,
+        aw * by - ax * bz + ay * bw + az * bx,
+        aw * bz + ax * by - ay * bx + az * bw,
+        aw * bw - ax * bx - ay * by - az * bz,
+    ))
+
+
+def quat_conjugate(q: tuple[float, ...]) -> tuple[float, float, float, float]:
+    return (-q[0], -q[1], -q[2], q[3])
+
+
+def quat_power(q: tuple[float, ...], exponent: float) -> tuple[float, float, float, float]:
+    """Scale a shortest-arc unit quaternion's angle while retaining its axis."""
+    q = quat_normalize(q)
+    if q[3] < 0.0:
+        q = tuple(-value for value in q)
+    half_angle = math.acos(max(-1.0, min(1.0, q[3])))
+    sin_half = math.sin(half_angle)
+    if abs(sin_half) < 1e-8:
+        return (0.0, 0.0, 0.0, 1.0)
+    axis = (q[0] / sin_half, q[1] / sin_half, q[2] / sin_half)
+    scaled_half_angle = half_angle * exponent
+    scaled_sine = math.sin(scaled_half_angle)
+    return quat_normalize((
+        axis[0] * scaled_sine,
+        axis[1] * scaled_sine,
+        axis[2] * scaled_sine,
+        math.cos(scaled_half_angle),
+    ))
+
+
+def amplify_from_rest(
+    rest: tuple[float, ...],
+    pose: tuple[float, ...],
+    factor: float,
+) -> tuple[float, float, float, float]:
+    rest_q = quat_normalize(rest)
+    pose_q = quat_normalize(pose)
+    relative = quat_multiply(quat_conjugate(rest_q), pose_q)
+    return quat_multiply(rest_q, quat_power(relative, factor))
+
+
+def bend_x(q: tuple[float, ...], angle_radians: float) -> tuple[float, float, float, float]:
+    half = angle_radians * 0.5
+    return quat_multiply(q, (math.sin(half), 0.0, 0.0, math.cos(half)))
+
+
+def keep_quaternion_hemisphere(
+    values: list[tuple[float, float, float, float]],
+) -> list[tuple[float, float, float, float]]:
+    result: list[tuple[float, float, float, float]] = []
+    for value in values:
+        normalized = quat_normalize(value)
+        if result and sum(a * b for a, b in zip(result[-1], normalized)) < 0.0:
+            normalized = tuple(-component for component in normalized)
+        result.append(normalized)
+    return result
 
 
 def add_root_gait(
@@ -608,11 +692,59 @@ def add_parent_run(path: Path) -> None:
             input_remap[old_input] = glb.append_accessor(mapped, "SCALAR", 1, mins=[0.0], maxs=[RUN_DURATION])
         clone["input"] = input_remap[old_input]
         samplers.append(clone)
+    phase_times = [RUN_DURATION * i / (SAMPLE_COUNT - 1) for i in range(SAMPLE_COUNT)]
+    phase_input = glb.append_accessor(phase_times, "SCALAR", 1, mins=[0.0], maxs=[RUN_DURATION])
+    for channel in channels:
+        if channel["target"].get("path") != "rotation":
+            continue
+        node_index = channel["target"]["node"]
+        node = glb.doc["nodes"][node_index]
+        node_name = node.get("name", "")
+        sampler_index = channel["sampler"]
+        source_sampler = walk["samplers"][sampler_index]
+        source_values = glb.read_float_vectors(source_sampler["output"])
+        rest = tuple(node.get("rotation", [0.0, 0.0, 0.0, 1.0]))
+
+        if "upper_arm" in node_name:
+            # Preserve the authored shoulder axis while increasing the swing
+            # from the ~10 degree walk arc to a clear, restrained run arc.
+            run_values = keep_quaternion_hemisphere(
+                [amplify_from_rest(rest, value, 2.2) for value in source_values]
+            )
+        elif "thigh" in node_name:
+            # Increase the hip swing to about 29 degrees at the stride peak.
+            run_values = keep_quaternion_hemisphere(
+                [amplify_from_rest(rest, value, 1.85) for value in source_values]
+            )
+        elif "forearm" in node_name:
+            # A gentle elbow bend keeps the arm in a running position.
+            run_values = keep_quaternion_hemisphere([bend_x(value, 0.32) for value in source_values])
+        elif "shin" in node_name:
+            # Alternate a 24 degree knee tuck with the lifted leg. The root
+            # stays fixed; this is articulation at the existing shin pivots.
+            is_left = node_name.endswith(".L")
+            run_values = []
+            for index in range(SAMPLE_COUNT):
+                phase = 2.0 * math.pi * index / (SAMPLE_COUNT - 1)
+                flex = max(0.0, math.sin(phase) if is_left else -math.sin(phase)) * 0.42
+                run_values.append(bend_x(rest, flex))
+            samplers[sampler_index]["input"] = phase_input
+            samplers[sampler_index]["interpolation"] = "LINEAR"
+        else:
+            continue
+
+        packed = [component for value in run_values for component in value]
+        samplers[sampler_index]["output"] = glb.append_accessor(packed, "VEC4", 4)
     glb.doc.setdefault("animations", []).append({"name": "Run", "samplers": samplers, "channels": channels})
     finalize_build_metadata(
         glb,
         start,
-        {"kind": "retimed-skinned-run-v1", "animations": ["Run"], "meshes": {}},
+        {
+            "kind": "distinct-skinned-run-v2",
+            "animations": ["Run"],
+            "meshes": {},
+            "notes": "Run amplifies shoulder/hip swing, bends elbows, and adds alternating knee flex; root translation remains the authored in-place value.",
+        },
     )
     glb.write()
 
