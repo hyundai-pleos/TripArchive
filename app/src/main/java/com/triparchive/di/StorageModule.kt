@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.triparchive.data.local.MIGRATION_1_2
 import com.triparchive.data.local.MIGRATION_2_3
 import com.triparchive.data.local.MIGRATION_3_4
+import com.triparchive.data.local.MIGRATION_4_5
 import com.triparchive.data.local.TripArchiveDatabase
 import com.triparchive.data.profile.ProfileDao
 import com.triparchive.data.profile.ProfileRepository
@@ -32,7 +33,7 @@ object StorageModule {
     ): TripArchiveDatabase =
         Room
             .databaseBuilder(context, TripArchiveDatabase::class.java, "triparchive.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .build()
 
     @Provides

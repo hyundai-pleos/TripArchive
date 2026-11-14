@@ -317,6 +317,12 @@ class OnboardingTest {
     }
 
     private class FakeTripSessions : TripSessionRepository {
+        override suspend fun acquireProp(
+            profileId: Long,
+            sessionId: String,
+            category: com.triparchive.domain.navigation.DestinationCategory,
+        ) = true
+
         override suspend fun openOrResume(profile: Profile) =
             TripSession(
                 profileId = profile.id,
