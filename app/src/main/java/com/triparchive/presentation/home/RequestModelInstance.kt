@@ -25,6 +25,13 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.net.URI
+import java.util.IdentityHashMap
+
+// Read and written only on the Compose main thread. Removing before native teardown
+// prevents retained animation callbacks from using an already released asset.
+private val liveRequestInstances = IdentityHashMap<ModelInstance, Unit>()
+
+internal fun isRequestModelInstanceAlive(instance: ModelInstance): Boolean = liveRequestInstances.containsKey(instance)
 
 /**
  * A small, request-owned cleanup state for a glTF resource load.
@@ -109,6 +116,7 @@ internal class RequestModelInstanceOwner(
 ) {
     private val resourceLoader = ResourceLoader(engine, true)
     private var asset: FilamentAsset? = null
+    private var publishedInstance: ModelInstance? = null
     private var disposed = false
     private var resourceLoaderDestroyed = false
     private val lifetime =
@@ -165,8 +173,11 @@ internal class RequestModelInstanceOwner(
                     delay(16)
                 }
 
-                if (!lifetime.completeLoading() || !lifetime.canPublish) return@withContext null
-                return@withContext asset?.instance
+                if (!lifetime.completeLoading() || !lifetime.canPublish || disposed) return@withContext null
+                val instance = asset?.instance ?: return@withContext null
+                publishedInstance = instance
+                liveRequestInstances[instance] = Unit
+                instance
             } catch (cancellation: CancellationException) {
                 close()
                 throw cancellation
@@ -180,6 +191,8 @@ internal class RequestModelInstanceOwner(
     fun close() {
         if (disposed) return
         disposed = true
+        publishedInstance?.let(liveRequestInstances::remove)
+        publishedInstance = null
         lifetime.close()
     }
 

@@ -4,6 +4,8 @@ import android.car.Car
 import android.content.pm.PackageManager
 import android.opengl.Matrix
 import android.os.Build
+import android.os.SystemClock
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
@@ -40,6 +42,8 @@ import io.github.sceneview.model.getAnimationIndex
 import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberCollisionSystem
 import io.github.sceneview.rememberEngine
+import io.github.sceneview.rememberEnvironment
+import io.github.sceneview.rememberEnvironmentLoader
 import io.github.sceneview.rememberMainLightNode
 import io.github.sceneview.rememberModelLoader
 import io.github.sceneview.rememberScene
@@ -111,6 +115,8 @@ internal fun ProfileCharacter(
         }
 
     val scene = rememberScene(engine)
+    val environmentLoader = rememberEnvironmentLoader(engine)
+    val environment = rememberEnvironment(environmentLoader, isOpaque = false)
     val collisionSystem = rememberCollisionSystem(renderView)
     val sceneNodeManager = remember(scene, collisionSystem) { SceneNodeManager(scene, collisionSystem) }
     val mainLightNode =
@@ -159,6 +165,7 @@ internal fun ProfileCharacter(
             modelLoader = modelLoader,
             view = renderView,
             scene = scene,
+            environment = environment,
             collisionSystem = collisionSystem,
             autoCenterContent = false,
             mainLightNode = mainLightNode,
@@ -294,6 +301,7 @@ private fun rememberCharacterNode(
         DisposableEffect(sceneNodeManager, characterNode) {
             sceneNodeManager.addNode(characterNode)
             onDispose {
+                binding.disposed = true
                 sceneNodeManager.removeNode(characterNode)
                 characterNode.destroy()
             }
@@ -301,6 +309,7 @@ private fun rememberCharacterNode(
         DisposableEffect(characterNode, modelNode) {
             modelNode.parent = characterNode
             onDispose {
+                binding.disposed = true
                 modelNode.parent = null
                 modelNode.destroy()
             }
@@ -321,14 +330,22 @@ private fun rememberCharacterNode(
         }
         SideEffect(onReady)
         val latestMotionPresentation by rememberUpdatedState(motionPresentation)
-        DisposableEffect(binding, animate) {
+        val reactionBinding = remember(engine, modelNode) { CharacterReactionBinding(engine, modelNode) }
+        DisposableEffect(binding, reactionBinding, animate, animationClock) {
             val timeline = CharacterAnimationTimeline()
+            val reactions = CharacterReactionReducer()
+            var lastReaction: Pair<CharacterReaction, CharacterReactionSpeedBand>? = null
             var previousFrameNanos: Long? = null
-            animationClock.onFrame =
+            val onFrame: ((Long) -> Unit)? =
                 if (!animate) {
                     null
                 } else {
-                    { frameNanos ->
+                    frame@{ frameNanos ->
+                        if (binding.disposed || !isRequestModelInstanceAlive(characterNode.modelInstance) ||
+                            !isRequestModelInstanceAlive(modelNode.modelInstance)
+                        ) {
+                            return@frame
+                        }
                         val deltaSeconds =
                             previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f } ?: 0f
                         previousFrameNanos = frameNanos
@@ -341,9 +358,27 @@ private fun rememberCharacterNode(
                             )
                         applyCharacterAnimationFrame(binding.characterNode, frame, engine)
                         applyCharacterAnimationFrame(binding.modelNode, frame, engine)
+                        val reactionFrame =
+                            reactions.update(
+                                presentation.speedKph,
+                                SystemClock.elapsedRealtime(),
+                                presentation.stationaryInPark,
+                            )
+                        reactionBinding.apply(reactionFrame)
+                        val state = reactionFrame.reaction to reactionFrame.speedBand
+                        if (state != lastReaction) {
+                            Log.i(
+                                "CharacterReaction",
+                                "look=${look.id} reaction=${state.first} band=${state.second} speed=${presentation.speedKph}",
+                            )
+                            lastReaction = state
+                        }
                     }
                 }
-            onDispose { animationClock.onFrame = null }
+            animationClock.onFrame = onFrame
+            onDispose {
+                if (animationClock.onFrame === onFrame) animationClock.onFrame = null
+            }
         }
         return characterNode
     }
@@ -373,6 +408,7 @@ private fun rememberCharacterNode(
         sceneNodeManager.addNode(outfitNode)
         attachAccessoryToHead(engine, attachment)
         onDispose {
+            attachment.disposed = true
             accessoryNode.parent = null
             sceneNodeManager.removeNode(outfitNode)
             outfitNode.destroy()
@@ -385,14 +421,23 @@ private fun rememberCharacterNode(
         onReady()
     }
     val latestMotionPresentation by rememberUpdatedState(motionPresentation)
-    DisposableEffect(attachment, animate) {
+    val reactionBinding = remember(engine, outfitNode) { CharacterReactionBinding(engine, outfitNode) }
+    DisposableEffect(attachment, reactionBinding, animate, animationClock) {
         val timeline = CharacterAnimationTimeline()
+        val reactions = CharacterReactionReducer()
+        var lastReaction: Pair<CharacterReaction, CharacterReactionSpeedBand>? = null
         var previousFrameNanos: Long? = null
-        animationClock.onFrame =
+        val onFrame: ((Long) -> Unit)? =
             if (!animate) {
                 null
             } else {
-                { frameNanos ->
+                frame@{ frameNanos ->
+                    if (attachment.disposed ||
+                        !isRequestModelInstanceAlive(outfitNode.modelInstance) ||
+                        !isRequestModelInstanceAlive(accessoryNode.modelInstance)
+                    ) {
+                        return@frame
+                    }
                     val deltaSeconds =
                         previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f } ?: 0f
                     previousFrameNanos = frameNanos
@@ -404,9 +449,27 @@ private fun rememberCharacterNode(
                             deltaSeconds,
                         )
                     applyCharacterAnimationFrame(attachment.characterNode, frame, engine)
+                    val reactionFrame =
+                        reactions.update(
+                            presentation.speedKph,
+                            SystemClock.elapsedRealtime(),
+                            presentation.stationaryInPark,
+                        )
+                    reactionBinding.apply(reactionFrame)
+                    val state = reactionFrame.reaction to reactionFrame.speedBand
+                    if (state != lastReaction) {
+                        Log.i(
+                            "CharacterReaction",
+                            "look=${look.id} reaction=${state.first} band=${state.second} speed=${presentation.speedKph}",
+                        )
+                        lastReaction = state
+                    }
                 }
             }
-        onDispose { animationClock.onFrame = null }
+        animationClock.onFrame = onFrame
+        onDispose {
+            if (animationClock.onFrame === onFrame) animationClock.onFrame = null
+        }
     }
     return outfitNode
 }
@@ -419,6 +482,7 @@ private class CharacterFrameClock {
 }
 
 private class AdultCompositeBinding {
+    var disposed = false
     var characterNode: RiggedModelNode? = null
     var modelNode: RiggedModelNode? = null
     var lastAppliedLookId: String? = null
@@ -495,6 +559,8 @@ private fun applyGaitMorphWeights(
     character.modelInstance.entities.forEach { entity ->
         val renderableInstance = manager.getInstance(entity)
         if (renderableInstance == 0 || manager.getMorphTargetCount(renderableInstance) != weights.size) return@forEach
+        val targetNames = character.model.getMorphTargetNames(entity)
+        if (!targetNames.contentEquals(arrayOf("arm_left", "arm_right", "leg_left", "leg_right"))) return@forEach
         manager.setMorphWeights(renderableInstance, weights, 0)
     }
 }
@@ -577,6 +643,7 @@ private fun applyAdultCompositeLook(
 }
 
 private class AccessoryRigBinding {
+    var disposed = false
     var characterNode: RiggedModelNode? = null
     var accessoryNode: RiggedModelNode? = null
 }
