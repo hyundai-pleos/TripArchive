@@ -318,7 +318,7 @@ internal class CharacterReactionReducer(
                     CharacterReaction.WAITING -> 0.82f
                     CharacterReaction.JOY -> 1f
                     CharacterReaction.MOVING -> 0.3f
-                    CharacterReaction.WIND -> 0.9f
+                    CharacterReaction.WIND -> 1f
                 }
             weights[reaction.ordinal] = weight
             return weights

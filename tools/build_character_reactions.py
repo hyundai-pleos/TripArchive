@@ -20,7 +20,7 @@ NAMES = ["REACTION_CALM", "REACTION_WAITING", "REACTION_JOY", "REACTION_MOVING",
 # eye height, eye smile arch, mouth width, mouth height
 POSES = [(0.90, 0.0, 0.85, 0.50), (0.45, -0.10, 0.82, 0.12),
          (0.30, 0.28, 1.20, 1.35), (1.08, 0.08, 1.15, 1.12),
-         (0.40, 0.04, 0.38, 0.65)]
+         (0.85, 0.0, 1.25, 1.35)]
 
 
 def bounds(points):
@@ -155,12 +155,25 @@ def build(path):
                 u = (x-center[0]) / half[0]
                 q = (center[0] + sx*(x-center[0]),
                      center[1] + sy*(y-center[1]) + bend*half[1]*(1-u*u), z)
+                chevron = pose_index == 4 and group != "mouth"
+                fold_derivative = 0.0
+                if chevron:
+                    # Compress the oval into a thick inward-pointing >< stroke.
+                    # Catchlights use the same map; no skin or eye pivot moves.
+                    sx = 0.20
+                    v = (y-center[1]) / half[1]
+                    direction = 1.0 if group == "left" else -1.0
+                    fold = direction * half[0] * 0.9
+                    q = (center[0] + sx*(x-center[0]) + fold*(1-abs(v)),
+                         center[1] + sy*(y-center[1]), z)
+                    fold_derivative = -fold * (1.0 if v > 0 else -1.0 if v < 0 else 0.0) / half[1]
                 local = point(inv, q)
                 delta_positions.extend(local[k]-positions[i][k] for k in range(3))
                 normal_world = normalized(transpose_vector(inv, normals[i]))
                 derivative = -2*bend*half[1]*u/half[0]
                 nx,ny,nz = normal_world
-                new_world = (nx/sx - derivative*ny/(sx*sy), ny/sy, nz)
+                new_world = ((nx/sx, ny/sy - fold_derivative*nx/(sx*sy), nz) if chevron else
+                             (nx/sx - derivative*ny/(sx*sy), ny/sy, nz))
                 new_local = normalized(transpose_vector(worlds[ni], new_world))
                 delta_normals.extend(new_local[k]-normals[i][k] for k in range(3))
             targets.append({"POSITION": sparse_delta(glb, len(positions), ids, delta_positions),
