@@ -87,12 +87,12 @@ private fun Intent.toDemoDestinationState(previous: DestinationState?): Destinat
     var state = previous ?: DestinationState()
     if (hasName || hasCategory) {
         state =
-            state.copy(
-                name = rawName?.takeIf(String::isNotBlank),
-                category = category.takeIf { !rawName.isNullOrBlank() },
+            state.destinationChanged(rawName, category).copy(
                 arrived = null,
                 arrivedCategory = null,
+                arrivedDestinationId = null,
                 routing = true,
+                cancelled = false,
             )
     }
     if (getBooleanExtra(EXTRA_ARRIVED, false)) {

@@ -46,7 +46,9 @@ class DestinationHomeTest {
         captureIfRequested("home-no-destination")
         compose.onNodeWithText("여행 마치기").performClick()
         compose.onNodeWithText("취소").performClick()
-        compose.runOnIdle { state.value = DestinationState("안목해변", routing = true) }
+        compose.runOnIdle {
+            state.value = DestinationState("안목해변", routing = true, category = DestinationCategory.TOURISM)
+        }
         compose.onNodeWithText("안목해변").assertIsDisplayed()
         compose.onNodeWithText("목적지를 설정하면 기록이 시작됩니다").assertDoesNotExist()
         captureIfRequested("home-destination")
@@ -59,7 +61,7 @@ class DestinationHomeTest {
         compose.onNodeWithText("안목해변에 도착했어요!").assertIsDisplayed()
         compose.onNodeWithText("도착 확인하고 계속하기").performClick()
         compose.onNodeWithText("안목해변에 도착했어요!").assertDoesNotExist()
-        compose.runOnIdle { state.value = DestinationState("시장", routing = true) }
+        compose.runOnIdle { state.value = DestinationState("시장", routing = true, category = DestinationCategory.MART) }
         compose.onNodeWithText("시장").assertIsDisplayed()
         compose.runOnIdle { state.value = state.value.routeChanged(false) }
         compose.onNodeWithText("목적지를 설정하면 기록이 시작됩니다").assertIsDisplayed()
@@ -77,7 +79,7 @@ class DestinationHomeTest {
                     Profile(1, "준", ProfileRelationship.PARENT),
                     {},
                     {},
-                    MutableStateFlow(DestinationState("시장", routing = true)),
+                    MutableStateFlow(DestinationState("시장", routing = true, category = DestinationCategory.MART)),
                 )
             }
         }
@@ -95,11 +97,13 @@ class DestinationHomeTest {
             }
         }
         compose.onNodeWithText("도착 재현").assertIsNotEnabled()
-        compose.runOnIdle { state.value = DestinationState("시장", routing = true) }
+        compose.runOnIdle { state.value = DestinationState("시장", routing = true, category = DestinationCategory.MART) }
         compose.onNodeWithText("도착 재현").performClick()
         compose.onNodeWithText("시장에 도착했어요!").assertIsDisplayed()
         // A real SDK refresh/change must not interrupt the simulated arrival screen.
-        compose.runOnIdle { state.value = DestinationState("해변", routing = true) }
+        compose.runOnIdle {
+            state.value = DestinationState("해변", routing = true, category = DestinationCategory.TOURISM)
+        }
         compose.onNodeWithText("시장에 도착했어요!").assertIsDisplayed()
         compose.onNodeWithText("도착 확인하고 계속하기").performClick()
         compose.onNodeWithText("해변").assertIsDisplayed()
@@ -115,7 +119,7 @@ class DestinationHomeTest {
         compose.onNodeWithText("마치기").performClick()
         compose.runOnIdle {
             assertEquals(1, finished)
-            assertEquals(DestinationState("해변", routing = true), state.value)
+            assertEquals(DestinationState("해변", routing = true, category = DestinationCategory.TOURISM), state.value)
         }
         compose.onNode(isDialog()).assertDoesNotExist()
         compose.runOnIdle { state.value = state.value.arrive("해변") }
@@ -125,7 +129,7 @@ class DestinationHomeTest {
 
     @Test
     fun arrivalDialogCountsDownAndPausesDuringFinishConfirmation() {
-        val state = MutableStateFlow(DestinationState("안목해변", routing = true))
+        val state = MutableStateFlow(DestinationState("안목해변", routing = true, category = DestinationCategory.TOURISM))
         compose.setContent {
             TripArchiveTheme {
                 DestinationHome(Profile(1, "준", ProfileRelationship.PARENT), {}, {}, state)
@@ -152,7 +156,7 @@ class DestinationHomeTest {
 
     @Test
     fun homeIsDimmedWhileArrivalOrFinishDialogIsVisible() {
-        val state = MutableStateFlow(DestinationState("안목해변", routing = true))
+        val state = MutableStateFlow(DestinationState("안목해변", routing = true, category = DestinationCategory.TOURISM))
         compose.setContent {
             TripArchiveTheme {
                 DestinationHome(Profile(1, "준", ProfileRelationship.PARENT), {}, {}, state)

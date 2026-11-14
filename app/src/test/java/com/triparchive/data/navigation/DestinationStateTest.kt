@@ -1,7 +1,9 @@
 package com.triparchive.data.navigation
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DestinationStateTest {
@@ -34,6 +36,8 @@ class DestinationStateTest {
         assertNull(cancelled.name)
         assertNull(cancelled.category)
         assertEquals(false, cancelled.routing)
+        assertNull(cancelled.destinationId)
+        assertTrue(cancelled.cancelled)
     }
 
     @Test
@@ -61,5 +65,61 @@ class DestinationStateTest {
 
         assertNull(state.name)
         assertNull(state.category)
+        assertNull(state.destinationId)
+    }
+
+    @Test
+    fun identityUsesPoiAndSeparatesDifferentProvidersAndSubIds() {
+        val first = destinationIdentity("마트", "123", "1", "provider", 37.0, 127.0)
+        assertEquals(first, destinationIdentity("이름 변경", "123", "1", "provider", 38.0, 128.0))
+        assertNotEquals(first, destinationIdentity("마트", "123", "2", "provider", 37.0, 127.0))
+        assertNotEquals(first, destinationIdentity("마트", "123", "1", "other", 37.0, 127.0))
+    }
+
+    @Test
+    fun identityFallsBackToCoordinatesAndThenName() {
+        val first = destinationIdentity("시장", latitude = 37.0, longitude = 127.0)
+        assertEquals(first, destinationIdentity("시장", latitude = 37.0, longitude = 127.0))
+        assertNotEquals(first, destinationIdentity("시장", latitude = 38.0, longitude = 127.0))
+        assertEquals(destinationIdentity("시장"), destinationIdentity("시장", latitude = 0.0, longitude = 0.0))
+        assertEquals(destinationIdentity("시장"), destinationIdentity("시장", latitude = Double.NaN, longitude = 127.0))
+    }
+
+    @Test
+    fun arrivalCapturesIdentityOnlyForMatchingNameAndAcknowledgementClearsIt() {
+        val active = DestinationState().routeChanged(true).destinationChanged("학교", destinationId = "poi:1")
+        val arrived = active.arrive("학교")
+        assertEquals("poi:1", arrived.arrivedDestinationId)
+        assertNull(arrived.destinationId)
+        assertNull(arrived.acknowledge().arrivedDestinationId)
+        assertNull(active.arrive("병원").arrivedDestinationId)
+    }
+
+    @Test
+    fun newRouteResetsCancellation() {
+        val cancelled = DestinationState().routeChanged(true).destinationChanged("시장").routeChanged(false)
+        val next = cancelled.routeChanged(true).destinationChanged("시장")
+        assertEquals(false, next.cancelled)
+        assertEquals(destinationIdentity("시장"), next.destinationId)
+    }
+
+    @Test
+    fun lateGuidanceCannotResurrectCancelledRoute() {
+        val cancelled = DestinationState().routeChanged(true).destinationChanged("시장").routeChanged(false)
+        assertEquals(cancelled, cancelled.guidanceObserved())
+        val next = cancelled.routingCompleted().guidanceObserved().destinationChanged("병원")
+        assertEquals(true, next.routing)
+        assertEquals(false, next.cancelled)
+        assertEquals("병원", next.name)
+    }
+
+    @Test
+    fun completedNewRouteClearsPreviousArrival() {
+        val arrived = DestinationState().routeChanged(true).destinationChanged("시장").arrive("시장")
+        val next = arrived.routingCompleted().guidanceObserved().destinationChanged("학교")
+        assertNull(next.arrived)
+        assertNull(next.arrivedCategory)
+        assertNull(next.arrivedDestinationId)
+        assertEquals("학교", next.name)
     }
 }

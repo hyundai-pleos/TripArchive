@@ -1,10 +1,18 @@
 package com.triparchive.presentation.home
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.triparchive.data.navigation.DestinationState
+import com.triparchive.data.navigation.PleosDestinationSource
 import com.triparchive.data.record.NewTripRecord
 import com.triparchive.data.record.RecordRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import javax.inject.Inject
 
@@ -15,6 +23,29 @@ internal class TripSessionViewModel
     constructor(
         private val repository: RecordRepository,
     ) : ViewModel() {
+        val categorySelection = CategorySelectionState()
+        private val observedDestination = MutableStateFlow(DestinationState())
+        private var observation: Job? = null
+        private var demoOverride = false
+
+        fun observeDestination(context: Context): StateFlow<DestinationState> {
+            if (observation == null) {
+                observation =
+                    viewModelScope.launch {
+                        PleosDestinationSource(context.applicationContext).observe().collect { state ->
+                            if (!demoOverride) categorySelection.update(state)
+                            observedDestination.value = state
+                        }
+                    }
+            }
+            return observedDestination
+        }
+
+        fun setDemoOverride(enabled: Boolean) {
+            demoOverride = enabled
+            if (!enabled) categorySelection.update(observedDestination.value)
+        }
+
         private val startedAt = System.currentTimeMillis()
         private val arrivals = mutableListOf<String>()
         private val saveMutex = Mutex()

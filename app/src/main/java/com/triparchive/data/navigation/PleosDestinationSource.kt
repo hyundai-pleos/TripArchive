@@ -10,6 +10,7 @@ import ai.pleos.playground.navi.helper.listener.NaviHelperEventListener
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.callbackFlow
@@ -39,30 +40,44 @@ class PleosDestinationSource(
                 runCatching {
                     helper.getRouteStateInfo()
                     helper.getDestinationInfo()
-                }.onFailure { post { state = DestinationState() } }
+                }.onFailure { Log.w(TAG, "Unable to refresh navigation state", it) }
             }
             val listener =
                 object : NaviHelperEventListener {
                     override fun onRouteStateInfo(routeStateInfo: RouteStateInfo) =
                         post {
-                            state =
-                                state.routeChanged(
-                                    routeStateInfo.naviMode == NaviMode.ROUTE_GUIDING ||
-                                        routeStateInfo.naviMode == NaviMode.SIMULATION_GUIDING,
-                                )
+                            if (routeStateInfo.naviMode == NaviMode.ROUTE_GUIDING ||
+                                routeStateInfo.naviMode == NaviMode.SIMULATION_GUIDING
+                            ) {
+                                state = state.guidanceObserved()
+                            }
                         }
 
                     override fun onDestinationInfo(destinationInfo: DestinationInfo) =
                         post {
                             val name = destinationInfo.name
-                            if (name != arrivedName) {
-                                // The current Pleos adapter passes the destination name only.
-                                // Feature #23's category provider can populate this boundary later.
-                                state = state.destinationChanged(name, category = null)
+                            if (name.isNotBlank() && name != arrivedName && !state.cancelled) {
+                                // Category classification is supplied by a separate provider in the future.
+                                state =
+                                    state.destinationChanged(
+                                        name,
+                                        category = null,
+                                        destinationId =
+                                            destinationIdentity(
+                                                name = name,
+                                                poiId = destinationInfo.poiId,
+                                                poiSubId = destinationInfo.poiSubId,
+                                                poiProvider = destinationInfo.poiProvider,
+                                                latitude = destinationInfo.latitude,
+                                                longitude = destinationInfo.longitude,
+                                            ),
+                                    )
                             }
                         }
 
-                    override fun onError(errorCode: NaviErrorCode) = post { state = DestinationState() }
+                    override fun onError(errorCode: NaviErrorCode) {
+                        Log.w(TAG, "Navigation error: $errorCode")
+                    }
 
                     override fun onDestinationChanged() {
                         refresh()
@@ -71,7 +86,7 @@ class PleosDestinationSource(
                     override fun onRoutingCompleted() {
                         post {
                             arrivedName = null
-                            state = DestinationState()
+                            state = state.routingCompleted()
                         }
                         refresh()
                     }
@@ -85,7 +100,7 @@ class PleosDestinationSource(
                     override fun onDestinationArrived(destinationArrivedInfo: DestinationArrivedInfo) =
                         post {
                             val name = destinationArrivedInfo.name
-                            if (name.isNotBlank() && name != arrivedName) {
+                            if (name.isNotBlank() && name != arrivedName && !state.cancelled) {
                                 arrivedName = name
                                 state = state.arrive(name)
                             }
@@ -95,9 +110,9 @@ class PleosDestinationSource(
             runCatching {
                 helper.initialize(
                     onConnected = ::refresh,
-                    onFailed = { post { state = DestinationState() } },
+                    onFailed = { Log.w(TAG, "Unable to connect to navigation") },
                 )
-            }.onFailure { post { state = DestinationState() } }
+            }.onFailure { Log.w(TAG, "Unable to initialize navigation", it) }
             val refreshJob =
                 launch {
                     while (true) {
@@ -114,3 +129,5 @@ class PleosDestinationSource(
             }
         }
 }
+
+private const val TAG = "PleosDestinationSource"

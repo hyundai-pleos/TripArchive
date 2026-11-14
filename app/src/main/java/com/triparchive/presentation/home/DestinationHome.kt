@@ -46,6 +46,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import androidx.lifecycle.repeatOnLifecycle
 import com.triparchive.R
 import com.triparchive.data.navigation.DestinationCategory
@@ -54,6 +55,7 @@ import com.triparchive.data.navigation.PleosDestinationSource
 import com.triparchive.data.profile.Profile
 import com.triparchive.presentation.LocalDrivingRestricted
 import com.triparchive.presentation.home.components.ArrivalDialog
+import com.triparchive.presentation.home.components.CategorySelectionDialog
 import com.triparchive.presentation.home.components.HomeDestinationSheet
 import com.triparchive.presentation.management.ActionButton
 import com.triparchive.presentation.management.Gray
@@ -65,7 +67,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
 @Composable
-fun DestinationHome(
+internal fun DestinationHome(
     profile: Profile,
     onProfileClick: () -> Unit,
     onFinish: () -> Unit,
@@ -79,10 +81,15 @@ fun DestinationHome(
     onArrival: (String) -> Unit = {},
     saveTrip: suspend (String?) -> Boolean = { true },
     onDestinationCategoryChange: (DestinationCategory?) -> Unit = {},
+    categorySelectionState: CategorySelectionState? = null,
+    homeActive: Boolean = true,
+    onDemoOverrideChange: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val drivingRestricted = LocalDrivingRestricted.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val lifecycleState by lifecycle.currentStateAsState()
+    val selection = categorySelectionState ?: remember(profile.id) { CategorySelectionState() }
     var destination by remember(profile.id) { mutableStateOf(DestinationState()) }
     var acknowledged by remember(profile.id) { mutableStateOf<String?>(null) }
     var confirm by remember(profile.id) { mutableStateOf(false) }
@@ -94,6 +101,8 @@ fun DestinationHome(
     val demoInput = rememberDestinationDemoInput(profile.id)
     val demoDestination = demoInput.destination.value
     val effectiveDestination = demoDestination ?: destination
+    LaunchedEffect(demoDestination != null) { onDemoOverrideChange(demoDestination != null) }
+    DisposableEffect(Unit) { onDispose { onDemoOverrideChange(false) } }
     val latestCategoryChange by rememberUpdatedState(onDestinationCategoryChange)
     val scope = rememberCoroutineScope()
     LaunchedEffect(profile.id, finishing) {
@@ -127,17 +136,28 @@ fun DestinationHome(
         } else {
             demoArrival ?: effectiveDestination.arrived?.takeUnless { it == acknowledged }
         }
+    LaunchedEffect(effectiveDestination) { selection.update(effectiveDestination) }
     val arrivalCategory =
         when {
-            arrival == null -> null
-            demoArrival != null -> effectiveDestination.category.takeIf { effectiveDestination.name == arrival }
-            else -> effectiveDestination.arrivedCategory
+            arrival == null -> {
+                null
+            }
+
+            demoArrival != null -> {
+                selection.categoryFor(effectiveDestination).takeIf {
+                    effectiveDestination.name == arrival
+                }
+            }
+
+            else -> {
+                selection.arrivalCategoryFor(effectiveDestination, arrival)
+            }
         }
     val destinationCategory =
         if (arrival != null) {
             arrivalCategory
         } else {
-            effectiveDestination.category.takeIf {
+            selection.categoryFor(effectiveDestination).takeIf {
                 effectiveDestination.routing && effectiveDestination.name != null
             }
         }
@@ -167,6 +187,20 @@ fun DestinationHome(
             }
         }
     }
+    val showCategoryDialog =
+        selection.pending && effectiveDestination.routing && effectiveDestination.name != null &&
+            arrival == null && !confirm && !finishing && !drivingRestricted && homeActive &&
+            lifecycleState.isAtLeast(Lifecycle.State.STARTED)
+    LaunchedEffect(showCategoryDialog, lifecycle) {
+        if (showCategoryDialog) {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (selection.pending) {
+                    delay(100)
+                    selection.tick()
+                }
+            }
+        }
+    }
     BoxWithConstraints(
         modifier
             .fillMaxSize()
@@ -174,7 +208,7 @@ fun DestinationHome(
             .background(if (drawBackground) Color.White else Color.Transparent)
             .drawWithContent {
                 drawContent()
-                if (arrival != null || confirm) drawRect(Color.Black.copy(alpha = 0.2f))
+                if (arrival != null || confirm || showCategoryDialog) drawRect(Color.Black.copy(alpha = 0.2f))
             }.windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout)),
     ) {
         val s = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
@@ -196,6 +230,16 @@ fun DestinationHome(
             modifier = Modifier.align(Alignment.BottomCenter),
             category = destinationCategory,
         )
+        if (showCategoryDialog) {
+            CategorySelectionDialog(
+                selected = selection.selected,
+                secondsRemaining = selection.secondsRemaining,
+                scale = s,
+                onSelect = selection::select,
+                onConfirm = selection::confirm,
+                onDismiss = selection::dismiss,
+            )
+        }
         if (arrival != null && !confirm) {
             ArrivalDialog(
                 destination = arrival,
@@ -256,6 +300,7 @@ fun DestinationHome(
                                         demoArrival = null
                                         demoInput.reset()
                                         destination = DestinationState()
+                                        selection.clear()
                                         latestCategoryChange(null)
                                         finishing = true
                                     } else {

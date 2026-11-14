@@ -10,6 +10,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.triparchive.BuildConfig
 import com.triparchive.core.designsystem.TripArchiveTheme
 import com.triparchive.data.local.TripArchiveDatabase
+import com.triparchive.data.navigation.DestinationCategory
 import com.triparchive.data.navigation.DestinationState
 import com.triparchive.data.profile.Profile
 import com.triparchive.data.profile.ProfileRelationship
@@ -57,7 +58,7 @@ class TripRecordingDemoTest {
 
     @Test
     fun twoDemoArrivalsAndFinishSaveOrderedRecordForSelectedProfile() {
-        val source = MutableStateFlow(DestinationState("시장", routing = true))
+        val source = MutableStateFlow(DestinationState("시장", routing = true, category = DestinationCategory.MART))
         val session = TripSessionViewModel(repository)
         var finished = false
         compose.setContent {
@@ -76,7 +77,9 @@ class TripRecordingDemoTest {
         compose.onNodeWithText("도착 재현").performClick()
         compose.onNodeWithText("시장에 도착했어요!").assertIsDisplayed()
         compose.onNodeWithText("도착 확인하고 계속하기").performClick()
-        compose.runOnIdle { source.value = DestinationState("해변", routing = true) }
+        compose.runOnIdle {
+            source.value = DestinationState("해변", routing = true, category = DestinationCategory.TOURISM)
+        }
         compose.onNodeWithText("도착 재현").performClick()
         compose.onNodeWithText("해변에 도착했어요!").assertIsDisplayed()
         compose.onNodeWithText("도착 확인하고 계속하기").performClick()
@@ -99,7 +102,7 @@ class TripRecordingDemoTest {
 
     @Test
     fun finishFromArrivalIncludesPendingStopAndCancelDoesNotSave() {
-        val source = MutableStateFlow(DestinationState("해변", routing = true))
+        val source = MutableStateFlow(DestinationState("해변", routing = true, category = DestinationCategory.TOURISM))
         val session = TripSessionViewModel(repository)
         var finished = false
         compose.setContent {
@@ -137,7 +140,7 @@ class TripRecordingDemoTest {
 
     @Test
     fun failedSaveKeepsTripOpenAndRetrySavesItOnce() {
-        val source = MutableStateFlow(DestinationState("시장", routing = true))
+        val source = MutableStateFlow(DestinationState("시장", routing = true, category = DestinationCategory.MART))
         val session = TripSessionViewModel(repository)
         var attempts = 0
         var finished = false

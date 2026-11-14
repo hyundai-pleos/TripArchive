@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -130,6 +131,7 @@ private fun OnboardingNavigationContent(
 ) {
     val backStack = rememberNavBackStack(Startup)
     val drivingRestricted = LocalDrivingRestricted.current
+    val applicationContext = LocalContext.current.applicationContext
     val form by viewModel.state.collectAsState()
     val listState by selectionViewModel.state.collectAsState()
     val management by managementViewModel.state.collectAsState()
@@ -291,6 +293,10 @@ private fun OnboardingNavigationContent(
                             if (validSession != null) {
                                 DestinationHome(
                                     profile = profile,
+                                    categorySelectionState = tripSessionViewModel.categorySelection,
+                                    source = tripSessionViewModel.observeDestination(applicationContext),
+                                    onDemoOverrideChange = tripSessionViewModel::setDemoOverride,
+                                    homeActive = backStack.lastOrNull() == home,
                                     onProfileClick = {
                                         if (!drivingRestricted &&
                                             backStack.lastOrNull() == home
