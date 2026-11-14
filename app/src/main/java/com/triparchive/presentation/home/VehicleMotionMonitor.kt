@@ -13,6 +13,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
+import kotlin.math.abs
 
 /** Reads the standard AAOS speed, gear and driving restriction signals for the active home. */
 internal class VehicleMotionMonitor(
@@ -231,7 +232,9 @@ internal class VehicleMotionMonitor(
             CharacterMotionPresentation(
                 band = band,
                 drivingRestricted = drivingRestricted,
-                parked = gearSelection == VehicleGear.GEAR_PARK,
+                stationaryInPark =
+                    gearSelection == VehicleGear.GEAR_PARK &&
+                        speedMetersPerSecond?.let { abs(it) <= 0.1f } == true,
             )
         if (presentation != lastPresentation) publishPresentation(presentation)
 

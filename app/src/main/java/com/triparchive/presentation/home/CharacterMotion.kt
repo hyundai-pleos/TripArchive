@@ -12,10 +12,10 @@ internal enum class CharacterMotionBand {
 internal data class CharacterMotionPresentation(
     val band: CharacterMotionBand = CharacterMotionBand.UNAVAILABLE,
     val drivingRestricted: Boolean = true,
-    val parked: Boolean = false,
+    val stationaryInPark: Boolean = false,
 ) {
     val idleEnabled: Boolean
-        get() = band == CharacterMotionBand.WAITING && parked && !drivingRestricted
+        get() = band == CharacterMotionBand.WAITING && stationaryInPark && !drivingRestricted
 
     val staticPoseTimeSeconds: Float
         get() {
@@ -53,13 +53,13 @@ internal class CharacterMotionReducer(
 
         val speedKph = abs(speedMetersPerSecond) * METERS_PER_SECOND_TO_KPH
         val target =
-            if (speedKph <= WAITING_SPEED_KPH) {
+            if (speedKph <= waitingThresholdKph()) {
                 CharacterMotionBand.WAITING
             } else {
                 movingBandFor(speedKph)
             }
 
-        if (target == CharacterMotionBand.WAITING || band == CharacterMotionBand.WAITING) {
+        if (band == CharacterMotionBand.UNAVAILABLE && target == CharacterMotionBand.WAITING) {
             return changeImmediately(target)
         }
         if (target == band) {
@@ -76,6 +76,13 @@ internal class CharacterMotionReducer(
         }
         return band
     }
+
+    private fun waitingThresholdKph(): Float =
+        when (band) {
+            CharacterMotionBand.WAITING -> 4f
+            CharacterMotionBand.UNAVAILABLE -> 3f
+            else -> 2f
+        }
 
     private fun movingBandFor(speedKph: Float): CharacterMotionBand {
         val threshold =
@@ -99,7 +106,6 @@ internal class CharacterMotionReducer(
 
     private companion object {
         const val METERS_PER_SECOND_TO_KPH = 3.6f
-        const val WAITING_SPEED_KPH = 3f
         const val GENERAL_DRIVING_BASE_KPH = 30f
         const val GENERAL_DRIVING_ENTER_KPH = 33f
         const val LOW_SPEED_ENTER_KPH = 27f
