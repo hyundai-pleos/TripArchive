@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
@@ -25,13 +26,14 @@ internal fun BoundaryCanvas(
     visitIntensities: Map<String, VisitIntensity>,
     viewport: () -> MapViewport,
     onAction: (VisitMapAction) -> Unit,
+    visitColor: Color = VisitMapPalette.accent,
     modifier: Modifier = Modifier,
     interactionsEnabled: Boolean = !LocalDrivingRestricted.current,
 ) {
     val currentOnAction = rememberUpdatedState(onAction)
     val fills =
-        remember(visitIntensities) {
-            visitIntensities.mapValues { (_, intensity) -> VisitMapPalette.fill(intensity) }
+        remember(visitIntensities, visitColor) {
+            visitIntensities.mapValues { (_, intensity) -> VisitMapPalette.fill(intensity, visitColor) }
         }
 
     Canvas(

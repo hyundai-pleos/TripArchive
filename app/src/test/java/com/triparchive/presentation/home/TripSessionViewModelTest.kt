@@ -5,6 +5,13 @@ import com.triparchive.data.record.NewTripRecord
 import com.triparchive.data.record.RecordRepository
 import com.triparchive.data.record.TripRecord
 import com.triparchive.data.record.TripRecordDetail
+import com.triparchive.domain.map.AdministrativeBoundaries
+import com.triparchive.domain.map.AdministrativeBoundary
+import com.triparchive.domain.map.BoundaryPolygon
+import com.triparchive.domain.map.BoundaryRepository
+import com.triparchive.domain.map.GeoPoint
+import com.triparchive.domain.map.GetAdministrativeBoundaries
+import com.triparchive.domain.map.ResolveDistricts
 import com.triparchive.domain.navigation.CategoryLookupResult
 import com.triparchive.domain.navigation.CategoryLookupStatus
 import com.triparchive.domain.navigation.Destination
@@ -31,6 +38,15 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TripSessionViewModelTest {
+    private fun emptyDistricts() =
+        ResolveDistricts(
+            GetAdministrativeBoundaries(
+                object : BoundaryRepository {
+                    override suspend fun getBoundaries() = AdministrativeBoundaries(emptyList(), emptyList())
+                },
+            ),
+        )
+
     @Test
     fun arrivalsRetainOrderIncludingRepeatedNamesAndCorrectProfile() =
         runBlocking {
@@ -40,6 +56,7 @@ class TripSessionViewModelTest {
                     repository,
                     FakeDestinationSource(),
                     ResolveDestinationCategory(),
+                    emptyDistricts(),
                 )
             session.recordArrival(place(1, "시장"))
             session.recordArrival(place(2, "해변"))
@@ -63,6 +80,7 @@ class TripSessionViewModelTest {
                     repository,
                     FakeDestinationSource(),
                     ResolveDestinationCategory(),
+                    emptyDistricts(),
                 )
             session.recordArrival(place(1, "시장"))
             assertTrue(session.save(3, place(2, "  해변  ")))
@@ -78,6 +96,7 @@ class TripSessionViewModelTest {
                     repository,
                     FakeDestinationSource(),
                     ResolveDestinationCategory(),
+                    emptyDistricts(),
                 ).save(3, null),
             )
             assertEquals(1, repository.saved.size)
@@ -92,6 +111,7 @@ class TripSessionViewModelTest {
                     repository,
                     FakeDestinationSource(),
                     ResolveDestinationCategory(),
+                    emptyDistricts(),
                 )
             session.recordArrival(place(1, "시장"))
             assertFalse(session.save(1, place(2, "해변")))
@@ -122,6 +142,7 @@ class TripSessionViewModelTest {
                     repository,
                     FakeDestinationSource(),
                     ResolveDestinationCategory(),
+                    emptyDistricts(),
                 )
             session.recordArrival(place(1, "시장"))
             val first = async { session.save(1, null) }
@@ -142,6 +163,7 @@ class TripSessionViewModelTest {
                     repository,
                     FakeDestinationSource(),
                     ResolveDestinationCategory(),
+                    emptyDistricts(),
                 )
             session.recordArrival(place(1, "시장", DestinationCategory.MART))
             session.recordArrival(place(2, "병원", DestinationCategory.HOSPITAL))
@@ -160,6 +182,7 @@ class TripSessionViewModelTest {
                     repository,
                     FakeDestinationSource(),
                     ResolveDestinationCategory(),
+                    emptyDistricts(),
                 )
             session.recordArrival(place(1, "시장"))
             assertFalse(session.save(1, place(2, "해변")))
@@ -185,7 +208,7 @@ class TripSessionViewModelTest {
         runBlocking {
             val repository = FakeRecords()
             val source = FakeDestinationSource()
-            val session = TripSessionViewModel(repository, source, ResolveDestinationCategory())
+            val session = TripSessionViewModel(repository, source, ResolveDestinationCategory(), emptyDistricts())
             val first = place(1, "시장", DestinationCategory.MART)
             session.recordArrival(first)
             session.recordArrival(first)
@@ -206,7 +229,13 @@ class TripSessionViewModelTest {
     fun alreadyRecordedPendingVisitIsNotAddedAgainOnFinish() =
         runBlocking {
             val repository = FakeRecords()
-            val session = TripSessionViewModel(repository, FakeDestinationSource(), ResolveDestinationCategory())
+            val session =
+                TripSessionViewModel(
+                    repository,
+                    FakeDestinationSource(),
+                    ResolveDestinationCategory(),
+                    emptyDistricts(),
+                )
             val market = place(1, "시장", DestinationCategory.MART)
             session.recordArrival(market)
             assertTrue(session.save(1, market))
@@ -223,7 +252,7 @@ class TripSessionViewModelTest {
         runBlocking {
             val source = FakeDestinationSource()
             val repository = FakeRecords()
-            val session = TripSessionViewModel(repository, source, ResolveDestinationCategory())
+            val session = TripSessionViewModel(repository, source, ResolveDestinationCategory(), emptyDistricts())
             source.session.destinationChanged("시장", 37.0, 127.0)
             source.session.arrive("시장")
             source.session.routeStarted()
@@ -244,7 +273,13 @@ class TripSessionViewModelTest {
     fun manualCategoryOverridesLaterClassificationForRecordedArrival() =
         runBlocking {
             val repository = FakeRecords()
-            val session = TripSessionViewModel(repository, FakeDestinationSource(), ResolveDestinationCategory())
+            val session =
+                TripSessionViewModel(
+                    repository,
+                    FakeDestinationSource(),
+                    ResolveDestinationCategory(),
+                    emptyDistricts(),
+                )
             val destination = place(8, "시장").copy(categoryStatus = CategoryLookupStatus.SUCCESS)
             session.categorySelection.update(DestinationState(current = destination, routing = true))
             session.categorySelection.select(CategoryChoice.SCHOOL)
@@ -260,7 +295,7 @@ class TripSessionViewModelTest {
         runBlocking {
             val repository = FakeRecords()
             val source = FakeDestinationSource()
-            val session = TripSessionViewModel(repository, source, ResolveDestinationCategory())
+            val session = TripSessionViewModel(repository, source, ResolveDestinationCategory(), emptyDistricts())
             source.session.routeStarted()
             source.session.destinationChanged("시장", 37.0, 127.0)
             val current = source.session.state.current!!
@@ -283,7 +318,13 @@ class TripSessionViewModelTest {
     fun otherKeepsAnUnclassifiedCategoryAcrossSaveRetries() =
         runBlocking {
             val repository = FakeRecords().apply { shouldFail = true }
-            val session = TripSessionViewModel(repository, FakeDestinationSource(), ResolveDestinationCategory())
+            val session =
+                TripSessionViewModel(
+                    repository,
+                    FakeDestinationSource(),
+                    ResolveDestinationCategory(),
+                    emptyDistricts(),
+                )
             val destination = place(8, "장소").copy(categoryStatus = CategoryLookupStatus.SUCCESS)
             session.categorySelection.update(DestinationState(current = destination, routing = true))
             session.categorySelection.select(CategoryChoice.OTHER)
@@ -299,9 +340,87 @@ class TripSessionViewModelTest {
         }
 
     @Test
+    fun arrivalCoordinatesAreMappedOnlyWhenTheTripIsSaved() =
+        runBlocking {
+            val region =
+                AdministrativeBoundary(
+                    "11140",
+                    "중구",
+                    listOf(
+                        BoundaryPolygon(
+                            listOf(
+                                listOf(
+                                    GeoPoint(126.9, 37.5),
+                                    GeoPoint(127.1, 37.5),
+                                    GeoPoint(127.1, 37.6),
+                                    GeoPoint(126.9, 37.6),
+                                ),
+                            ),
+                        ),
+                    ),
+                )
+            val resolver =
+                ResolveDistricts(
+                    GetAdministrativeBoundaries(
+                        object : BoundaryRepository {
+                            override suspend fun getBoundaries() = AdministrativeBoundaries(emptyList(), listOf(region))
+                        },
+                    ),
+                )
+            val repository = FakeRecords()
+            val session =
+                TripSessionViewModel(repository, FakeDestinationSource(), ResolveDestinationCategory(), resolver)
+            session.recordArrival(Destination(1, "시청", 37.55, 127.0, DestinationCategory.TOURISM))
+            session.recordArrival(Destination(2, "중구 병원", 37.56, 127.0, DestinationCategory.HOSPITAL))
+            session.recordArrival(Destination(3, "좌표 없음", 0.0, 0.0, DestinationCategory.MART))
+            assertTrue(repository.saved.isEmpty())
+            assertTrue(session.save(7, null))
+            val stops =
+                repository.saved
+                    .single()
+                    .second.stops
+            assertEquals(listOf("11140", "11140", null), stops.map { it.districtCode })
+            assertEquals(listOf(37.55, 37.56, 0.0), stops.map { it.latitude })
+        }
+
+    @Test
+    fun failedBoundaryLookupDoesNotLoseTheTripRecord() =
+        runBlocking {
+            val resolver =
+                ResolveDistricts(
+                    GetAdministrativeBoundaries(
+                        object : BoundaryRepository {
+                            override suspend fun getBoundaries(): AdministrativeBoundaries =
+                                error("boundary unavailable")
+                        },
+                    ),
+                )
+            val repository = FakeRecords()
+            val session =
+                TripSessionViewModel(repository, FakeDestinationSource(), ResolveDestinationCategory(), resolver)
+            session.recordArrival(Destination(1, "시청", 37.55, 127.0))
+            assertTrue(session.save(7, null))
+            assertEquals(
+                "시청",
+                repository.saved
+                    .single()
+                    .second.stops
+                    .single()
+                    .placeName,
+            )
+            assertNull(
+                repository.saved
+                    .single()
+                    .second.stops
+                    .single()
+                    .districtCode,
+            )
+        }
+
+    @Test
     fun destinationSourceRemainsObservedUntilTheHomeSessionScopeEnds() {
         val source = FakeDestinationSource()
-        val session = TripSessionViewModel(FakeRecords(), source, ResolveDestinationCategory())
+        val session = TripSessionViewModel(FakeRecords(), source, ResolveDestinationCategory(), emptyDistricts())
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         try {
             session.startDestinationObservation(scope)

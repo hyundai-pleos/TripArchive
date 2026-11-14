@@ -2,6 +2,8 @@ package com.triparchive.presentation.map
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.triparchive.data.profile.ProfileMapColor
+import com.triparchive.data.profile.ProfileRepository
 import com.triparchive.domain.map.GetAdministrativeBoundaries
 import com.triparchive.domain.map.ObserveMapVisitIntensities
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -10,6 +12,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -20,16 +25,22 @@ internal class VisitMapViewModel
     constructor(
         private val getAdministrativeBoundaries: GetAdministrativeBoundaries,
         private val observeMapVisitIntensities: ObserveMapVisitIntensities,
+        private val profileRepository: ProfileRepository,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(VisitMapUiState())
         val uiState = _uiState.asStateFlow()
         private var loadJob: Job? = null
+        private var currentProfileId: Long? = null
 
-        init {
+        fun setProfile(profileId: Long) {
+            if (currentProfileId == profileId) return
+            currentProfileId = profileId
+            _uiState.update { it.copy(content = VisitMapContent.Loading, mapColor = ProfileMapColor.PINK) }
             load()
         }
 
         private fun load(isRetry: Boolean = false) {
+            val profileId = currentProfileId ?: return
             loadJob?.cancel()
             loadJob =
                 viewModelScope.launch {
@@ -38,10 +49,19 @@ internal class VisitMapViewModel
                     }
                     try {
                         val boundaries = getAdministrativeBoundaries()
-                        observeMapVisitIntensities(boundaries).collect { visitIntensities ->
-                            _uiState.update {
-                                it.copy(content = VisitMapContent.Ready(boundaries, visitIntensities))
-                            }
+                        val mapColors =
+                            profileRepository
+                                .observeAll()
+                                .map { profiles ->
+                                    ProfileMapColor.fromStorage(profiles.firstOrNull { it.id == profileId }?.mapColor)
+                                }.distinctUntilChanged()
+                        combine(
+                            observeMapVisitIntensities(boundaries, profileId),
+                            mapColors,
+                        ) { visitIntensities, color ->
+                            VisitMapContent.Ready(boundaries, visitIntensities) to color
+                        }.collect { (content, color) ->
+                            _uiState.update { it.copy(content = content, mapColor = color) }
                         }
                     } catch (cancelled: CancellationException) {
                         throw cancelled

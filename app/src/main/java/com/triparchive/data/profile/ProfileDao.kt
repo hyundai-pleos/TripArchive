@@ -30,6 +30,12 @@ interface ProfileDao {
         relationship: ProfileRelationship,
     ): Int
 
+    @Query("UPDATE profiles SET mapColor = :color WHERE id = :id")
+    suspend fun updateMapColor(
+        id: Long,
+        color: String,
+    ): Int
+
     @Query("DELETE FROM profiles WHERE id = :id")
     suspend fun delete(id: Long): Int
 

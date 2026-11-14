@@ -10,7 +10,10 @@ class ObserveMapVisitIntensities
     constructor(
         private val repository: RegionVisitCountRepository,
     ) {
-        operator fun invoke(boundaries: AdministrativeBoundaries): Flow<Map<String, VisitIntensity>> {
+        operator fun invoke(
+            boundaries: AdministrativeBoundaries,
+            profileId: Long,
+        ): Flow<Map<String, VisitIntensity>> {
             val provinceCodes = boundaries.provinces.mapTo(hashSetOf()) { it.code }
             val provinceByDistrict =
                 boundaries.districts.associate { district ->
@@ -18,7 +21,7 @@ class ObserveMapVisitIntensities
                 }
 
             return repository
-                .observeDistrictVisitCounts()
+                .observeDistrictVisitCounts(profileId)
                 .map { districtCounts ->
                     buildMap {
                         val provinceCounts = mutableMapOf<String, Long>()

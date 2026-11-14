@@ -2,6 +2,7 @@ package com.triparchive.presentation.management
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +18,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -28,6 +31,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -43,6 +48,7 @@ import androidx.compose.ui.window.DialogWindowProvider
 import com.triparchive.R
 import com.triparchive.core.designsystem.TripArchiveTheme
 import com.triparchive.data.profile.Profile
+import com.triparchive.data.profile.ProfileMapColor
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.presentation.LocalDrivingRestricted
 
@@ -64,6 +70,7 @@ fun ProfileManagementScreen(
     onCancelDelete: () -> Unit,
     onConfirmDelete: () -> Unit,
     onLogout: () -> Unit,
+    onMapColorChange: (ProfileMapColor) -> Unit = {},
 ) {
     val drivingRestricted = LocalDrivingRestricted.current
     BoxWithConstraints(
@@ -126,12 +133,67 @@ fun ProfileManagementScreen(
                     Modifier.weight(1f),
                 )
             }
+            Spacer(Modifier.height((28 * scale).dp))
+            MapColorSelector(
+                selected = ProfileMapColor.fromStorage(profile.mapColor),
+                enabled = !busy && !drivingRestricted,
+                scale = scale,
+                onSelect = onMapColorChange,
+            )
             if (!showDeleteDialog && error != null) {
                 Text(error, color = Pink, fontSize = (26 * scale).sp)
             }
         }
         if (showDeleteDialog) {
             DeleteDialog(profile.nickname, busy, drivingRestricted, error, scale, onCancelDelete, onConfirmDelete)
+        }
+    }
+}
+
+@Composable
+private fun MapColorSelector(
+    selected: ProfileMapColor,
+    enabled: Boolean,
+    scale: Float,
+    onSelect: (ProfileMapColor) -> Unit,
+) {
+    Column(Modifier.fillMaxWidth()) {
+        Text(
+            "지도 색상 변경",
+            color = Color.Black,
+            fontSize = (28 * scale).sp,
+            lineHeight = (44 * scale).sp,
+            fontWeight = FontWeight.Medium,
+        )
+        Spacer(Modifier.height((20 * scale).dp))
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = (16 * scale).dp).selectableGroup(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ProfileMapColor.entries.forEach { choice ->
+                val isSelected = selected == choice
+                Box(
+                    Modifier
+                        .size((80 * scale).dp)
+                        .background(Color(choice.argb), CircleShape)
+                        .then(
+                            if (isSelected) {
+                                Modifier.border((3 * scale).dp, Color.Black, CircleShape)
+                            } else {
+                                Modifier
+                            },
+                        ).semantics { contentDescription = "지도 색상 ${choice.label}" }
+                        .selectable(
+                            selected = isSelected,
+                            enabled = enabled,
+                            interactionSource = null,
+                            indication = null,
+                            role = Role.RadioButton,
+                            onClick = { onSelect(choice) },
+                        ),
+                )
+            }
         }
     }
 }

@@ -13,8 +13,21 @@ data class RecordWithStops(
     @Relation(parentColumn = "id", entityColumn = "tripId") val stops: List<TripStop>,
 )
 
+data class DistrictVisitCount(
+    val districtCode: String,
+    val visitCount: Int,
+)
+
 @Dao
 interface RecordDao {
+    @Query(
+        "SELECT trip_stops.districtCode AS districtCode, COUNT(*) AS visitCount " +
+            "FROM trip_stops INNER JOIN trip_records ON trip_stops.tripId = trip_records.id " +
+            "WHERE trip_records.profileId = :profileId AND trip_stops.districtCode IS NOT NULL " +
+            "GROUP BY trip_stops.districtCode",
+    )
+    fun observeDistrictVisitCounts(profileId: Long): Flow<List<DistrictVisitCount>>
+
     @Query("SELECT * FROM trip_records WHERE profileId = :profileId ORDER BY endedAt DESC, id DESC")
     fun observeRecords(profileId: Long): Flow<List<TripRecord>>
 
@@ -51,7 +64,13 @@ interface RecordDao {
                 index,
                 name,
                 ->
-                TripStop(tripId = id, position = index, placeName = name.placeName, category = name.category?.name)
+                TripStop(
+                    tripId = id,
+                    position = index,
+                    placeName = name.placeName,
+                    category = name.category?.name,
+                    districtCode = name.districtCode,
+                )
             },
         )
         return id

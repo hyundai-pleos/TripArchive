@@ -39,7 +39,7 @@ class ObserveMapVisitIntensitiesTest {
                         "51210" to VisitIntensity.FIFTH,
                     ),
                 ),
-                observe(boundaries).toList(),
+                observe(boundaries, 1L).toList(),
             )
         }
 
@@ -55,7 +55,7 @@ class ObserveMapVisitIntensitiesTest {
                     "11140" to VisitIntensity.SECOND,
                     "11170" to VisitIntensity.FIRST,
                 ),
-                observe(boundaries).toList().single(),
+                observe(boundaries, 1L).toList().single(),
             )
         }
 
@@ -69,8 +69,25 @@ class ObserveMapVisitIntensitiesTest {
 
             assertEquals(
                 listOf(emptyMap(), mapOf("11" to VisitIntensity.FIFTH, "11110" to VisitIntensity.FIFTH), emptyMap()),
-                observe(boundaries).toList(),
+                observe(boundaries, 1L).toList(),
             )
+        }
+
+    @Test
+    fun `selected profile id is passed to the visit source`() =
+        runBlocking {
+            var requestedId = -1L
+            val observe =
+                ObserveMapVisitIntensities { profileId ->
+                    requestedId = profileId
+                    flowOf(mapOf("11140" to 1))
+                }
+
+            assertEquals(
+                mapOf("11" to VisitIntensity.FIRST, "11140" to VisitIntensity.FIRST),
+                observe(boundaries, 7L).toList().single(),
+            )
+            assertEquals(7L, requestedId)
         }
 
     private val boundaries =

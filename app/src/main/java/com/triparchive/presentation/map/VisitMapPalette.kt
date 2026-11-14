@@ -14,8 +14,11 @@ internal object VisitMapPalette {
     val secondaryText = Color(0xFF6B7684)
     val accent = Color(0xFFFF66AF)
 
-    fun fill(intensity: VisitIntensity): Color {
+    fun fill(
+        intensity: VisitIntensity,
+        color: Color = accent,
+    ): Color {
         val fraction = (intensity.ordinal + 1) / 5f
-        return accent.copy(alpha = fraction).compositeOver(unvisited)
+        return color.copy(alpha = fraction).compositeOver(unvisited)
     }
 }

@@ -3,6 +3,6 @@ package com.triparchive.domain.map
 import kotlinx.coroutines.flow.Flow
 
 fun interface RegionVisitCountRepository {
-    /** Emits the current totals and subsequent changes, keyed by the boundary dataset's 시·군·구 code. */
-    fun observeDistrictVisitCounts(): Flow<Map<String, Int>>
+    /** Emits totals for the given profile, keyed by the boundary dataset's 시·군·구 code. */
+    fun observeDistrictVisitCounts(profileId: Long): Flow<Map<String, Int>>
 }

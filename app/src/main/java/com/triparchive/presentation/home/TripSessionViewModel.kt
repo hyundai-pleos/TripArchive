@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.triparchive.data.record.NewTripRecord
 import com.triparchive.data.record.RecordRepository
+import com.triparchive.domain.map.GeoPoint
+import com.triparchive.domain.map.ResolveDistricts
 import com.triparchive.domain.navigation.Destination
 import com.triparchive.domain.navigation.DestinationSource
 import com.triparchive.domain.navigation.DestinationState
@@ -27,6 +29,7 @@ internal class TripSessionViewModel
         private val repository: RecordRepository,
         private val destinationSource: DestinationSource,
         private val resolveCategory: ResolveDestinationCategory,
+        private val resolveDistricts: ResolveDistricts,
     ) : ViewModel() {
         val categorySelection = CategorySelectionState()
         private val startedAt = System.currentTimeMillis()
@@ -57,8 +60,17 @@ internal class TripSessionViewModel
                     existing != null -> existing.category
                     else -> resolveCategory(null)
                 }
-            if (existing != null && existing.category == category && existing.placeName == name) return existing
-            return TripStopDraft(name, category).also { resolvedStops[chosen.id] = it }
+            if (existing != null && existing.category == category && existing.placeName == name &&
+                existing.latitude == chosen.latitude && existing.longitude == chosen.longitude
+            ) {
+                return existing
+            }
+            return TripStopDraft(
+                name,
+                category,
+                chosen.latitude,
+                chosen.longitude,
+            ).also { resolvedStops[chosen.id] = it }
         }
 
         fun recordArrival(destination: Destination) {
@@ -85,6 +97,22 @@ internal class TripSessionViewModel
                     saved = true
                     return true
                 }
+                val districtCodes =
+                    try {
+                        resolveDistricts(
+                            stops.map { stop ->
+                                val latitude = stop.latitude
+                                val longitude = stop.longitude
+                                if (latitude == null || longitude == null) null else GeoPoint(longitude, latitude)
+                            },
+                        )
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        // Region lookup must never prevent the trip record itself from being saved.
+                        List(stops.size) { null }
+                    }
+                val resolvedStops = stops.mapIndexed { index, stop -> stop.copy(districtCode = districtCodes[index]) }
                 val title =
                     if (stops.size ==
                         1
@@ -100,7 +128,7 @@ internal class TripSessionViewModel
                         startedAt = startedAt,
                         endedAt = System.currentTimeMillis(),
                         distanceMeters = null,
-                        stops = stops,
+                        stops = resolvedStops,
                     ),
                 )
                 saved = true
