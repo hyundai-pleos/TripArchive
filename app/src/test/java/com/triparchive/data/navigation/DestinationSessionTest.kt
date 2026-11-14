@@ -24,6 +24,45 @@ class DestinationSessionTest {
     }
 
     @Test
+    fun poiIdentityDistinguishesPlacesAndKeepsVisitAcrossChangedDisplayInformation() {
+        val session = DestinationSession()
+        session.destinationChanged("시장", 37.0, 127.0, poiId = "1", poiProvider = "provider", poiSubId = "a")
+        val first = session.state.current!!
+        session.destinationChanged("시장 이름 변경", 37.01, 127.01, poiId = "1", poiProvider = "provider", poiSubId = "a")
+        assertEquals(first.id, session.state.current!!.id)
+        session.destinationChanged("시장", 37.0, 127.0, poiId = "2", poiProvider = "provider", poiSubId = "a")
+        assertTrue(session.state.current!!.id > first.id)
+        val second = session.state.current!!
+        session.destinationChanged("시장", 37.0, 127.0, poiId = "2", poiProvider = "provider", poiSubId = "b")
+        assertTrue(session.state.current!!.id > second.id)
+    }
+
+    @Test
+    fun poiIdentityCanBeAddedOrTemporarilyOmittedWithoutReplacingVisit() {
+        val session = DestinationSession()
+        session.destinationChanged("시장", 37.0, 127.0)
+        val first = session.state.current!!
+        session.destinationChanged("시장", 37.0, 127.0, poiId = "1", poiProvider = "provider")
+        assertEquals(first.id, session.state.current!!.id)
+        session.destinationChanged("시장", 37.0, 127.0)
+        assertEquals(first.id, session.state.current!!.id)
+        session.destinationChanged("시장", 37.0, 127.0, poiId = "2", poiProvider = "provider")
+        assertTrue(session.state.current!!.id > first.id)
+    }
+
+    @Test
+    fun completedPoiIgnoresPollingUntilNewRouteButNotAnotherPoiAtSameCoordinates() {
+        val session = DestinationSession()
+        session.destinationChanged("시장", 37.0, 127.0, poiId = "1", poiProvider = "provider")
+        val first = session.state.current!!
+        session.arrive("시장")
+        session.destinationChanged("시장", 37.0, 127.0, poiId = "1", poiProvider = "provider")
+        assertNull(session.state.current)
+        session.destinationChanged("시장", 37.0, 127.0, poiId = "2", poiProvider = "provider")
+        assertTrue(session.state.current!!.id > first.id)
+    }
+
+    @Test
     fun nextDestinationDoesNotReplacePendingArrivalOrItsCategory() {
         val session = DestinationSession()
         session.destinationChanged("시장", 37.0, 127.0)

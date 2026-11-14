@@ -289,8 +289,13 @@ private fun OnboardingNavigationContent(
                                         cachedCharacterLook(it, profile.relationship) != null
                                 }
                             if (validSession != null) {
+                                LaunchedEffect(tripSessionViewModel) {
+                                    tripSessionViewModel.startDestinationObservation()
+                                }
                                 DestinationHome(
                                     profile = profile,
+                                    categorySelectionState = tripSessionViewModel.categorySelection,
+                                    homeActive = backStack.lastOrNull() == home,
                                     onProfileClick = {
                                         if (!drivingRestricted &&
                                             backStack.lastOrNull() == home
