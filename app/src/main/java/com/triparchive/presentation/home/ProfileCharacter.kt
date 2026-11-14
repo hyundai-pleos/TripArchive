@@ -1,8 +1,11 @@
 package com.triparchive.presentation.home
 
+import android.car.Car
 import android.content.pm.PackageManager
 import android.opengl.Matrix
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -30,6 +33,7 @@ import io.github.sceneview.SurfaceType
 import io.github.sceneview.loaders.ModelLoader
 import io.github.sceneview.math.Position
 import io.github.sceneview.model.ModelInstance
+import io.github.sceneview.model.getAnimationIndex
 import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberMainLightNode
@@ -48,6 +52,40 @@ internal fun ProfileCharacter(
     if (LocalInspectionMode.current) return
 
     val sharedLoader = LocalCharacterModelLoader.current
+    val context = LocalContext.current
+    var speedPermissionGranted by
+        remember {
+            mutableStateOf(
+                androidx.core.content.ContextCompat
+                    .checkSelfPermission(context, Car.PERMISSION_SPEED) ==
+                    PackageManager.PERMISSION_GRANTED,
+            )
+        }
+    var permissionRequestMade by remember { mutableStateOf(false) }
+    var motionPresentation by remember { mutableStateOf(CharacterMotionPresentation()) }
+    val speedPermissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            speedPermissionGranted = granted
+        }
+    LaunchedEffect(active, motionPresentation.drivingRestricted, speedPermissionGranted, permissionRequestMade) {
+        if (active && !motionPresentation.drivingRestricted && !speedPermissionGranted && !permissionRequestMade) {
+            permissionRequestMade = true
+            speedPermissionLauncher.launch(Car.PERMISSION_SPEED)
+        }
+    }
+    DisposableEffect(context, active, speedPermissionGranted) {
+        if (active) {
+            val monitor = VehicleMotionMonitor(context) { motionPresentation = it }
+            monitor.start()
+            onDispose {
+                monitor.close()
+                motionPresentation = CharacterMotionPresentation()
+            }
+        } else {
+            motionPresentation = CharacterMotionPresentation()
+            onDispose { }
+        }
+    }
     val engine = sharedLoader?.engine ?: rememberCharacterEngine()
     val modelLoader = sharedLoader ?: rememberModelLoader(engine)
     val renderView = rememberView(engine)
@@ -92,6 +130,7 @@ internal fun ProfileCharacter(
                 compositeAssetPath = look.compositeAssetPath,
                 modelLoader = modelLoader,
                 engine = engine,
+                motionPresentation = motionPresentation,
                 onReady = { modelAttached = true },
             )
         } else {
@@ -105,8 +144,10 @@ internal fun ProfileCharacter(
                         val attachment = remember(outfit, accessory) { AccessoryRigBinding() }
                         ModelNode(
                             modelInstance = outfit,
-                            animationName = "Idle",
+                            autoAnimate = false,
+                            animationName = if (motionPresentation.idleEnabled) "Idle" else null,
                             animationLoop = true,
+                            animationSpeed = PARKED_IDLE_SPEED,
                             scaleToUnits = 1f,
                             centerOrigin = Position(0f, 0f, 0f),
                             apply = { attachment.characterNode = this },
@@ -122,6 +163,12 @@ internal fun ProfileCharacter(
                                     attachment.accessoryNode?.parent = null
                                 }
                             }
+                        }
+                        DisposableEffect(attachment, motionPresentation) {
+                            if (!motionPresentation.idleEnabled) {
+                                applyStaticIdlePose(attachment.characterNode, motionPresentation.staticPoseTimeSeconds)
+                            }
+                            onDispose { }
                         }
                         SideEffect { modelAttached = true }
                     }
@@ -151,6 +198,7 @@ private fun SceneScope.AdultCompositeCharacter(
     compositeAssetPath: String,
     modelLoader: ModelLoader,
     engine: Engine,
+    motionPresentation: CharacterMotionPresentation,
     onReady: () -> Unit,
 ) {
     val base = rememberModelInstance(modelLoader, baseAssetPath)
@@ -159,8 +207,10 @@ private fun SceneScope.AdultCompositeCharacter(
         val binding = remember(composite) { AdultCompositeBinding() }
         ModelNode(
             modelInstance = base,
-            animationName = "Idle",
+            autoAnimate = false,
+            animationName = if (motionPresentation.idleEnabled) "Idle" else null,
             animationLoop = true,
+            animationSpeed = PARKED_IDLE_SPEED,
             scaleToUnits = 1f,
             centerOrigin = Position(0f, 0f, 0f),
             apply = {
@@ -188,10 +238,30 @@ private fun SceneScope.AdultCompositeCharacter(
                 }
                 onDispose { }
             }
+            DisposableEffect(binding, motionPresentation) {
+                if (!motionPresentation.idleEnabled) {
+                    applyStaticIdlePose(binding.characterNode, motionPresentation.staticPoseTimeSeconds)
+                }
+                onDispose { }
+            }
         }
         SideEffect(onReady)
     }
 }
+
+private fun applyStaticIdlePose(
+    character: RiggedModelNode?,
+    timeSeconds: Float,
+) {
+    if (character == null) return
+    val animationIndex = character.animator.getAnimationIndex("Idle") ?: return
+    character.stopAnimation(animationIndex)
+    character.animator.applyAnimation(animationIndex, timeSeconds)
+    character.animator.updateBoneMatrices()
+    character.nodes.forEach { it.onWorldTransformChanged() }
+}
+
+private const val PARKED_IDLE_SPEED = 0.35f
 
 private fun attachAdultAccessoriesToHead(
     engine: Engine,
