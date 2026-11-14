@@ -44,6 +44,7 @@ import com.triparchive.R
 import com.triparchive.core.designsystem.TripArchiveTheme
 import com.triparchive.data.character.CharacterLook
 import com.triparchive.data.character.CharacterLookCatalog
+import com.triparchive.data.navigation.DestinationCategory
 import com.triparchive.data.profile.Profile
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.presentation.LocalDrivingRestricted
@@ -57,6 +58,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     background: Painter? = painterResource(R.drawable.home_street_background),
     onMapClick: () -> Unit = {},
+    destinationCategory: DestinationCategory? = null,
 ) {
     val drivingRestricted = LocalDrivingRestricted.current
     BoxWithConstraints(
@@ -68,7 +70,7 @@ fun HomeScreen(
     ) {
         val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
         if (renderCharacter) {
-            HomeCharacter(profile.relationship, scale, look = characterLook)
+            HomeCharacter(profile.relationship, scale, look = characterLook, destinationCategory = destinationCategory)
         }
 
         Row(
@@ -139,6 +141,7 @@ internal fun RetainedHomeCharacter(
     visible: Boolean,
     active: Boolean,
     prepare: Boolean,
+    destinationCategory: DestinationCategory? = null,
 ) {
     BoxWithConstraints(
         Modifier
@@ -148,7 +151,7 @@ internal fun RetainedHomeCharacter(
     ) {
         val scale = minOf(maxWidth.value / 840f, maxHeight.value / 1184f)
         val visibility = Modifier.graphicsLayer { alpha = if (visible) 1f else 0f }
-        HomeCharacter(relationship, scale, visibility, active, prepare, look)
+        HomeCharacter(relationship, scale, visibility, active, prepare, look, destinationCategory)
     }
 }
 
@@ -160,6 +163,7 @@ private fun BoxWithConstraintsScope.HomeCharacter(
     active: Boolean = true,
     prepare: Boolean = false,
     look: CharacterLook? = null,
+    destinationCategory: DestinationCategory? = null,
 ) {
     ProfileCharacter(
         look = look ?: CharacterLookCatalog.looksFor(relationship).first(),
@@ -171,6 +175,7 @@ private fun BoxWithConstraintsScope.HomeCharacter(
                 .height((760 * scale).dp),
         active = active,
         prepare = prepare,
+        destinationCategory = destinationCategory,
     )
 }
 

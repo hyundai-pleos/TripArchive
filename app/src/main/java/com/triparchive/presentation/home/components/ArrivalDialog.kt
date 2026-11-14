@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -32,6 +33,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import com.triparchive.core.designsystem.TripArchiveTheme
+import com.triparchive.data.navigation.DestinationCategory
 import com.triparchive.presentation.management.Gray
 import com.triparchive.presentation.management.Ink
 import com.triparchive.presentation.management.Pink
@@ -44,6 +46,7 @@ internal fun ArrivalDialog(
     isDemo: Boolean,
     onContinue: () -> Unit,
     onFinish: () -> Unit,
+    category: DestinationCategory? = null,
 ) {
     Dialog(
         onDismissRequest = onContinue,
@@ -54,7 +57,7 @@ internal fun ArrivalDialog(
             window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             window?.setDimAmount(0f)
         }
-        ArrivalDialogContent(destination, secondsRemaining, scale, isDemo, onContinue, onFinish)
+        ArrivalDialogContent(destination, secondsRemaining, scale, isDemo, onContinue, onFinish, category)
     }
 }
 
@@ -66,6 +69,7 @@ private fun ArrivalDialogContent(
     isDemo: Boolean,
     onContinue: () -> Unit,
     onFinish: () -> Unit,
+    category: DestinationCategory? = null,
 ) {
     Column(
         Modifier
@@ -98,15 +102,29 @@ private fun ArrivalDialogContent(
                 .padding((24 * scale).dp),
         ) {
             Text("도착", color = Gray, fontSize = (24 * scale).sp, lineHeight = (34 * scale).sp)
-            Text(
-                destination,
-                color = Color(0xFF333D4B),
-                fontSize = (32 * scale).sp,
-                lineHeight = (44 * scale).sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                DestinationCategoryIcon(category, Modifier.size((48 * scale).dp))
+                Spacer(Modifier.width((12 * scale).dp))
+                if (category != null) {
+                    Text(
+                        category.label,
+                        color = Pink,
+                        fontSize = (24 * scale).sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(Modifier.width((12 * scale).dp))
+                }
+                Text(
+                    destination,
+                    modifier = Modifier.weight(1f),
+                    color = Color(0xFF333D4B),
+                    fontSize = (32 * scale).sp,
+                    lineHeight = (44 * scale).sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         Column(Modifier.width((510 * scale).dp), verticalArrangement = Arrangement.spacedBy((12 * scale).dp)) {
             Row(

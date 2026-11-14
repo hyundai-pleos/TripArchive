@@ -27,6 +27,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.rememberLifecycleOwner
 import com.google.android.filament.Engine
 import com.triparchive.data.character.CharacterLook
+import com.triparchive.data.navigation.DestinationCategory
 import io.github.sceneview.RenderQuality
 import io.github.sceneview.SceneScope
 import io.github.sceneview.SceneView
@@ -49,6 +50,7 @@ internal fun ProfileCharacter(
     modifier: Modifier = Modifier,
     active: Boolean = true,
     prepare: Boolean = false,
+    destinationCategory: DestinationCategory? = null,
 ) {
     if (LocalInspectionMode.current) return
 
@@ -124,6 +126,10 @@ internal fun ProfileCharacter(
             if (modelAttached) prepared = true
         },
     ) {
+        DestinationPropNodes(
+            modelLoader = modelLoader,
+            selectedCategory = destinationCategory,
+        )
         if (look.baseAssetPath != null && look.compositeAssetPath != null) {
             AdultCompositeCharacter(
                 look = look,
@@ -196,6 +202,28 @@ internal fun ProfileCharacter(
             renderView.dynamicResolutionOptions.apply {
                 enabled = false
             }
+    }
+}
+
+@Composable
+private fun SceneScope.DestinationPropNodes(
+    modelLoader: ModelLoader,
+    selectedCategory: DestinationCategory?,
+) {
+    DestinationCategory.values().forEach { category ->
+        key(category) {
+            val modelInstance = rememberModelInstance(modelLoader, "models/destination_props/${category.assetFileName}")
+            if (modelInstance != null) {
+                ModelNode(
+                    modelInstance = modelInstance,
+                    autoAnimate = false,
+                    scaleToUnits = 0.22f,
+                    centerOrigin = Position(0f, 0f, 0f),
+                    position = Position(x = 0.5f, y = -0.35f, z = 0f),
+                    isVisible = selectedCategory == category,
+                )
+            }
+        }
     }
 }
 
