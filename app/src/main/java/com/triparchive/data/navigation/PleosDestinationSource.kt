@@ -4,6 +4,7 @@ import ai.pleos.playground.navi.constants.NaviErrorCode
 import ai.pleos.playground.navi.constants.NaviMode
 import ai.pleos.playground.navi.data.DestinationArrivedInfo
 import ai.pleos.playground.navi.data.DestinationInfo
+import ai.pleos.playground.navi.data.RouteStartInfo
 import ai.pleos.playground.navi.data.RouteStateInfo
 import ai.pleos.playground.navi.helper.NaviHelper
 import ai.pleos.playground.navi.helper.listener.NaviHelperEventListener
@@ -123,12 +124,18 @@ class PleosDestinationSource
                             refresh()
                         }
 
-                        override fun onRoutingCompleted() {
+                        // Replacing an active route can emit cancellation followed by route-start
+                        // without routing-completed. Resume updates before requesting the new destination.
+                        override fun onRouteStarted(routeStartInfo: RouteStartInfo) = resumeRoute()
+
+                        override fun onRoutingCompleted() = resumeRoute()
+
+                        private fun resumeRoute() {
                             post {
                                 routeCancelled = false
                                 session.routeStarted()
+                                refresh()
                             }
-                            refresh()
                         }
 
                         override fun onReRouteEnded() {

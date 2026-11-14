@@ -13,6 +13,26 @@ class DestinationSessionTest {
     private fun result(category: DestinationCategory) = CategoryLookupResult(category, CategoryLookupStatus.SUCCESS)
 
     @Test
+    fun replacingActiveRouteKeepsNewDestinationWhenOldLookupCompletes() {
+        val session = DestinationSession()
+        session.routeStarted()
+        session.destinationChanged("목적지 A", 37.0, 127.0)
+        val first = session.state.current!!
+        session.clearCurrent()
+        session.routeStarted()
+        session.destinationChanged("목적지 B", 37.1, 127.1)
+        val second = session.state.current!!
+        session.categoryResolved(second.id, result(DestinationCategory.HOSPITAL))
+        session.categoryResolved(first.id, result(DestinationCategory.MART))
+
+        assertTrue(session.state.routing)
+        assertTrue(first.id != second.id)
+        assertEquals("목적지 B", session.state.current!!.name)
+        assertEquals(DestinationCategory.HOSPITAL, session.state.current!!.category)
+        assertNull(session.state.pendingArrival)
+    }
+
+    @Test
     fun sdkPollingKeepsIdAndCoordinatesDistinguishPlacesWithSameName() {
         val session = DestinationSession()
         session.destinationChanged("시장", 37.0, 127.0)
