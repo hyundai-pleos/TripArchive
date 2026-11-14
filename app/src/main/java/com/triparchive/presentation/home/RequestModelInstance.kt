@@ -128,53 +128,54 @@ internal class RequestModelInstanceOwner(
             },
         )
 
-    suspend fun load(context: Context): ModelInstance? {
-        try {
-            val source =
-                context.loadFileBuffer(assetFileLocation)
-                    ?: throw IOException("Could not read model asset: $assetFileLocation")
-            currentCoroutineContext().ensureActive()
-            if (disposed) return null
-
-            val createdAsset =
-                sharedModelLoader.assetLoader.createAsset(source)
-                    ?: throw IOException("Could not create model asset: $assetFileLocation")
-            asset = createdAsset
-
-            val resourceBuffers = readResourceBuffers(context, createdAsset)
-            currentCoroutineContext().ensureActive()
-            if (disposed) return null
-
-            resourceBuffers.forEach { (uri, buffer) -> resourceLoader.addResourceData(uri, buffer) }
-            lifetime.beginLoading()
-            check(resourceLoader.asyncBeginLoad(createdAsset)) {
-                "Could not start model resource load: $assetFileLocation"
-            }
-
-            while (true) {
+    suspend fun load(context: Context): ModelInstance? =
+        withContext(Dispatchers.Main.immediate) {
+            try {
+                val source =
+                    context.loadFileBuffer(assetFileLocation)
+                        ?: throw IOException("Could not read model asset: $assetFileLocation")
                 currentCoroutineContext().ensureActive()
-                if (disposed) return null
-                resourceLoader.asyncUpdateLoad()
-                val progress = resourceLoader.asyncGetLoadProgress()
-                check(progress.isFinite()) { "Invalid model load progress: $assetFileLocation" }
-                if (progress >= 1f) break
-                currentCoroutineContext().ensureActive()
-                if (disposed) return null
-                // This keeps texture finalization moving even if the SceneView lifecycle is paused.
-                delay(16)
-            }
+                if (disposed) return@withContext null
 
-            if (!lifetime.completeLoading() || !lifetime.canPublish) return null
-            return asset?.instance
-        } catch (cancellation: CancellationException) {
-            close()
-            throw cancellation
-        } catch (failure: Exception) {
-            Log.e("RequestModelInstance", "Failed to load $assetFileLocation", failure)
-            close()
-            return null
+                val createdAsset =
+                    sharedModelLoader.assetLoader.createAsset(source)
+                        ?: throw IOException("Could not create model asset: $assetFileLocation")
+                asset = createdAsset
+
+                val resourceBuffers = readResourceBuffers(context, createdAsset)
+                currentCoroutineContext().ensureActive()
+                if (disposed) return@withContext null
+
+                resourceBuffers.forEach { (uri, buffer) -> resourceLoader.addResourceData(uri, buffer) }
+                lifetime.beginLoading()
+                check(resourceLoader.asyncBeginLoad(createdAsset)) {
+                    "Could not start model resource load: $assetFileLocation"
+                }
+
+                while (true) {
+                    currentCoroutineContext().ensureActive()
+                    if (disposed) return@withContext null
+                    resourceLoader.asyncUpdateLoad()
+                    val progress = resourceLoader.asyncGetLoadProgress()
+                    check(progress.isFinite()) { "Invalid model load progress: $assetFileLocation" }
+                    if (progress >= 1f) break
+                    currentCoroutineContext().ensureActive()
+                    if (disposed) return@withContext null
+                    // This keeps texture finalization moving even if the SceneView lifecycle is paused.
+                    delay(16)
+                }
+
+                if (!lifetime.completeLoading() || !lifetime.canPublish) return@withContext null
+                return@withContext asset?.instance
+            } catch (cancellation: CancellationException) {
+                close()
+                throw cancellation
+            } catch (failure: Exception) {
+                Log.e("RequestModelInstance", "Failed to load $assetFileLocation", failure)
+                close()
+                return@withContext null
+            }
         }
-    }
 
     fun close() {
         if (disposed) return

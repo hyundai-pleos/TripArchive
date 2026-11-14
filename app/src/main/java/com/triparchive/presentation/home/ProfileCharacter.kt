@@ -116,6 +116,7 @@ internal fun ProfileCharacter(
             intensity = 60_000f
         }
     val destinationPropNodes = rememberDestinationPropNodes(modelLoader, engine, sceneNodeManager, destinationCategory)
+    val animationClock = remember { CharacterFrameClock() }
     val characterNode =
         if (look.baseAssetPath != null && look.compositeAssetPath != null) {
             rememberCharacterNode(
@@ -126,6 +127,7 @@ internal fun ProfileCharacter(
                 motionPresentation = motionPresentation,
                 animate = active || (prepare && !prepared),
                 onReady = { modelAttached = true },
+                animationClock = animationClock,
             )
         } else {
             key(look.id) {
@@ -137,6 +139,7 @@ internal fun ProfileCharacter(
                     motionPresentation = motionPresentation,
                     animate = active || (prepare && !prepared),
                     onReady = { modelAttached = true },
+                    animationClock = animationClock,
                 )
             }
         }
@@ -162,6 +165,7 @@ internal fun ProfileCharacter(
             lifecycle = renderLifecycle,
             onFrame = { frameTimeNanos ->
                 if (modelAttached) prepared = true
+                animationClock.onFrame?.invoke(frameTimeNanos)
                 sceneNodes.forEach { it.onFrame(frameTimeNanos) }
             },
         )
@@ -227,6 +231,7 @@ private fun rememberCharacterNode(
     motionPresentation: CharacterMotionPresentation,
     animate: Boolean,
     onReady: () -> Unit,
+    animationClock: CharacterFrameClock,
 ): RiggedModelNode? {
     val baseAssetPath = look.baseAssetPath
     val compositeAssetPath = look.compositeAssetPath
@@ -282,25 +287,29 @@ private fun rememberCharacterNode(
         }
         SideEffect(onReady)
         val latestMotionPresentation by rememberUpdatedState(motionPresentation)
-        LaunchedEffect(binding, animate) {
-            if (!animate) return@LaunchedEffect
+        DisposableEffect(binding, animate) {
             val timeline = CharacterAnimationTimeline()
             var previousFrameNanos: Long? = null
-            while (true) {
-                val frameNanos = withFrameNanos { it }
-                val deltaSeconds =
-                    previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f } ?: 0f
-                previousFrameNanos = frameNanos
-                val presentation = latestMotionPresentation
-                val frame =
-                    timeline.advance(
-                        presentation.animationClip,
-                        presentation.targetAnimationSpeed,
-                        deltaSeconds,
-                    )
-                applyCharacterAnimationFrame(binding.characterNode, frame, engine)
-                applyCharacterAnimationFrame(binding.modelNode, frame, engine)
-            }
+            animationClock.onFrame =
+                if (!animate) {
+                    null
+                } else {
+                    { frameNanos ->
+                        val deltaSeconds =
+                            previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f } ?: 0f
+                        previousFrameNanos = frameNanos
+                        val presentation = latestMotionPresentation
+                        val frame =
+                            timeline.advance(
+                                presentation.animationClip,
+                                presentation.targetAnimationSpeed,
+                                deltaSeconds,
+                            )
+                        applyCharacterAnimationFrame(binding.characterNode, frame, engine)
+                        applyCharacterAnimationFrame(binding.modelNode, frame, engine)
+                    }
+                }
+            onDispose { animationClock.onFrame = null }
         }
         return characterNode
     }
@@ -342,26 +351,37 @@ private fun rememberCharacterNode(
         onReady()
     }
     val latestMotionPresentation by rememberUpdatedState(motionPresentation)
-    LaunchedEffect(attachment, animate) {
-        if (!animate) return@LaunchedEffect
+    DisposableEffect(attachment, animate) {
         val timeline = CharacterAnimationTimeline()
         var previousFrameNanos: Long? = null
-        while (true) {
-            val frameNanos = withFrameNanos { it }
-            val deltaSeconds =
-                previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f } ?: 0f
-            previousFrameNanos = frameNanos
-            val presentation = latestMotionPresentation
-            val frame =
-                timeline.advance(
-                    presentation.animationClip,
-                    presentation.targetAnimationSpeed,
-                    deltaSeconds,
-                )
-            applyCharacterAnimationFrame(attachment.characterNode, frame, engine)
-        }
+        animationClock.onFrame =
+            if (!animate) {
+                null
+            } else {
+                { frameNanos ->
+                    val deltaSeconds =
+                        previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f } ?: 0f
+                    previousFrameNanos = frameNanos
+                    val presentation = latestMotionPresentation
+                    val frame =
+                        timeline.advance(
+                            presentation.animationClip,
+                            presentation.targetAnimationSpeed,
+                            deltaSeconds,
+                        )
+                    applyCharacterAnimationFrame(attachment.characterNode, frame, engine)
+                }
+            }
+        onDispose { animationClock.onFrame = null }
     }
     return outfitNode
+}
+
+// Submit bone/morph updates only when SceneView renders. A Compose frame loop keeps
+// running while a permission dialog pauses the renderer and can overflow Filament's
+// command buffer before beginFrame/endFrame can drain it.
+private class CharacterFrameClock {
+    var onFrame: ((Long) -> Unit)? = null
 }
 
 private class AdultCompositeBinding {
