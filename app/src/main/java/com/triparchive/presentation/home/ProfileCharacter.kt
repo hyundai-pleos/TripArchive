@@ -300,7 +300,11 @@ private fun rememberCharacterNode(
             var previousFrameNanos: Long? = null
             while (true) {
                 val frameNanos = withFrameNanos { it }
-                if (binding.disposed) break
+                if (binding.disposed || !isRequestModelInstanceAlive(characterNode.modelInstance) ||
+                    !isRequestModelInstanceAlive(modelNode.modelInstance)
+                ) {
+                    break
+                }
                 val deltaSeconds =
                     previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f } ?: 0f
                 previousFrameNanos = frameNanos
@@ -380,7 +384,7 @@ private fun rememberCharacterNode(
         var previousFrameNanos: Long? = null
         while (true) {
             val frameNanos = withFrameNanos { it }
-            if (attachment.disposed) break
+            if (attachment.disposed || !isRequestModelInstanceAlive(outfitNode.modelInstance)) break
             val deltaSeconds =
                 previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f } ?: 0f
             previousFrameNanos = frameNanos
