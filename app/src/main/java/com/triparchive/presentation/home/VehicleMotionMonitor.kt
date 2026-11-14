@@ -235,6 +235,7 @@ internal class VehicleMotionMonitor(
                 stationaryInPark =
                     gearSelection == VehicleGear.GEAR_PARK &&
                         speedMetersPerSecond?.let { abs(it) <= 0.1f } == true,
+                speedKph = speedMetersPerSecond?.let { abs(it) * 3.6f },
             )
         if (presentation != lastPresentation) publishPresentation(presentation)
 
@@ -255,13 +256,7 @@ internal class VehicleMotionMonitor(
 
     private fun publishPresentation(presentation: CharacterMotionPresentation) {
         lastPresentation = presentation
-        val pose =
-            when {
-                presentation.idleEnabled -> "parked idle"
-                presentation.staticPoseTimeSeconds == 0f -> "neutral static"
-                else -> "sampled static"
-            }
-        Log.i(TAG, "Character motion state band=${presentation.band} pose=$pose restricted=$drivingRestricted")
+        Log.i(TAG, "Character motion state band=${presentation.band} restricted=$drivingRestricted")
         onPresentationChanged(presentation)
     }
 

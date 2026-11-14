@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
@@ -131,6 +132,7 @@ internal fun ProfileCharacter(
                 modelLoader = modelLoader,
                 engine = engine,
                 motionPresentation = motionPresentation,
+                animate = active || (prepare && !prepared),
                 onReady = { modelAttached = true },
             )
         } else {
@@ -145,9 +147,6 @@ internal fun ProfileCharacter(
                         ModelNode(
                             modelInstance = outfit,
                             autoAnimate = false,
-                            animationName = if (motionPresentation.idleEnabled) "Idle" else null,
-                            animationLoop = true,
-                            animationSpeed = PARKED_IDLE_SPEED,
                             scaleToUnits = 1f,
                             centerOrigin = Position(0f, 0f, 0f),
                             apply = { attachment.characterNode = this },
@@ -164,11 +163,26 @@ internal fun ProfileCharacter(
                                 }
                             }
                         }
-                        DisposableEffect(attachment, motionPresentation) {
-                            if (!motionPresentation.idleEnabled) {
-                                applyStaticIdlePose(attachment.characterNode, motionPresentation.staticPoseTimeSeconds)
+                        val latestMotionPresentation by rememberUpdatedState(motionPresentation)
+                        LaunchedEffect(attachment, active, prepare, prepared) {
+                            if (!active && !(prepare && !prepared)) return@LaunchedEffect
+                            val timeline = CharacterAnimationTimeline()
+                            var previousFrameNanos: Long? = null
+                            while (true) {
+                                val frameNanos = withFrameNanos { it }
+                                val deltaSeconds =
+                                    previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f }
+                                        ?: 0f
+                                previousFrameNanos = frameNanos
+                                val presentation = latestMotionPresentation
+                                val frame =
+                                    timeline.advance(
+                                        presentation.animationClip,
+                                        presentation.targetAnimationSpeed,
+                                        deltaSeconds,
+                                    )
+                                applyCharacterAnimationFrame(attachment.characterNode, frame)
                             }
-                            onDispose { }
                         }
                         SideEffect { modelAttached = true }
                     }
@@ -199,6 +213,7 @@ private fun SceneScope.AdultCompositeCharacter(
     modelLoader: ModelLoader,
     engine: Engine,
     motionPresentation: CharacterMotionPresentation,
+    animate: Boolean,
     onReady: () -> Unit,
 ) {
     val base = rememberModelInstance(modelLoader, baseAssetPath)
@@ -208,9 +223,6 @@ private fun SceneScope.AdultCompositeCharacter(
         ModelNode(
             modelInstance = base,
             autoAnimate = false,
-            animationName = if (motionPresentation.idleEnabled) "Idle" else null,
-            animationLoop = true,
-            animationSpeed = PARKED_IDLE_SPEED,
             scaleToUnits = 1f,
             centerOrigin = Position(0f, 0f, 0f),
             apply = {
@@ -238,30 +250,64 @@ private fun SceneScope.AdultCompositeCharacter(
                 }
                 onDispose { }
             }
-            DisposableEffect(binding, motionPresentation) {
-                if (!motionPresentation.idleEnabled) {
-                    applyStaticIdlePose(binding.characterNode, motionPresentation.staticPoseTimeSeconds)
+            val latestMotionPresentation by rememberUpdatedState(motionPresentation)
+            LaunchedEffect(binding, animate) {
+                if (!animate) return@LaunchedEffect
+                val timeline = CharacterAnimationTimeline()
+                var previousFrameNanos: Long? = null
+                while (true) {
+                    val frameNanos = withFrameNanos { it }
+                    val deltaSeconds =
+                        previousFrameNanos?.let { (frameNanos - it).coerceAtLeast(0L) / 1_000_000_000f } ?: 0f
+                    previousFrameNanos = frameNanos
+                    val presentation = latestMotionPresentation
+                    val frame =
+                        timeline.advance(
+                            presentation.animationClip,
+                            presentation.targetAnimationSpeed,
+                            deltaSeconds,
+                        )
+                    applyCharacterAnimationFrame(binding.characterNode, frame)
+                    applyCharacterAnimationFrame(binding.modelNode, frame)
                 }
-                onDispose { }
             }
         }
         SideEffect(onReady)
     }
 }
 
-private fun applyStaticIdlePose(
+private fun applyCharacterAnimationFrame(
     character: RiggedModelNode?,
-    timeSeconds: Float,
+    frame: CharacterAnimationFrame,
 ) {
     if (character == null) return
-    val animationIndex = character.animator.getAnimationIndex("Idle") ?: return
-    character.stopAnimation(animationIndex)
-    character.animator.applyAnimation(animationIndex, timeSeconds)
-    character.animator.updateBoneMatrices()
+    val animator = character.animator
+    val currentIndex = animator.getAnimationIndex(frame.clip.assetName) ?: animator.getAnimationIndex("Idle") ?: return
+    animator.applyAnimation(currentIndex, animationTime(animator, currentIndex, frame.clipTimeSeconds))
+    val previousClip = frame.previousClip
+    if (previousClip != null) {
+        val previousIndex = animator.getAnimationIndex(previousClip.assetName) ?: animator.getAnimationIndex("Idle")
+        if (previousIndex != null) {
+            animator.applyCrossFade(
+                previousIndex,
+                animationTime(animator, previousIndex, frame.previousTimeSeconds),
+                frame.crossFadeAlpha,
+            )
+        }
+    }
+    animator.updateBoneMatrices()
     character.nodes.forEach { it.onWorldTransformChanged() }
 }
 
-private const val PARKED_IDLE_SPEED = 0.35f
+private fun animationTime(
+    animator: com.google.android.filament.gltfio.Animator,
+    index: Int,
+    timeSeconds: Float,
+): Float {
+    val duration = animator.getAnimationDuration(index)
+    if (!duration.isFinite() || duration <= 0f) return 0f
+    return timeSeconds % duration
+}
 
 private fun attachAdultAccessoriesToHead(
     engine: Engine,
