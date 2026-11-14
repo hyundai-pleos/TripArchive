@@ -175,18 +175,21 @@ private fun BoxWithConstraintsScope.HomeCharacter(
     destinationCategory: DestinationCategory? = null,
     destinationCategories: List<DestinationCategory> = listOfNotNull(destinationCategory),
 ) {
+    val compact = maxWidth < maxHeight
+    val viewportHeight = minOf((912 * scale).dp, maxWidth * 0.7f)
     ProfileCharacter(
         look = look ?: CharacterLookCatalog.looksFor(relationship).first(),
         modifier =
             Modifier
                 .align(Alignment.Center)
-                .offset(y = (-40 * scale).dp)
+                .offset(y = ((if (compact) 10 else -40) * scale).dp)
                 .then(modifier)
                 .fillMaxWidth()
-                .height(minOf((912 * scale).dp, maxWidth * 0.7f)),
+                .height(viewportHeight * if (compact) 1.25f else 1f),
         active = active,
         prepare = prepare,
         destinationCategories = destinationCategories,
+        compact = compact,
     )
 }
 

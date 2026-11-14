@@ -77,7 +77,7 @@ internal fun Modifier.movingRoadCenterLine(): Modifier {
         }
     }
     return drawBehind {
-        val horizon = size.height * 0.58f
+        val horizon = size.height * if (size.width < size.height) 0.65f else 0.58f
         val center = size.width / 2f
         drawRect(
             Brush.verticalGradient(listOf(Color(0xFFE1FAF5), Color(0xFFF1FBF8))),

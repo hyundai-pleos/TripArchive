@@ -54,6 +54,7 @@ internal fun ProfileCharacter(
     prepare: Boolean = false,
     destinationCategory: DestinationCategory? = null,
     destinationCategories: List<DestinationCategory> = listOfNotNull(destinationCategory),
+    compact: Boolean = false,
 ) {
     if (LocalInspectionMode.current) return
 
@@ -117,7 +118,7 @@ internal fun ProfileCharacter(
             intensity = 60_000f
         }
     val destinationPropNodes =
-        rememberDestinationPropNodes(modelLoader, engine, sceneNodeManager, destinationCategories)
+        rememberDestinationPropNodes(modelLoader, engine, sceneNodeManager, destinationCategories, compact)
     val animationClock = remember { CharacterFrameClock() }
     val characterNode =
         if (look.baseAssetPath != null && look.compositeAssetPath != null) {
@@ -148,7 +149,7 @@ internal fun ProfileCharacter(
     val sceneNodes = destinationPropNodes + listOfNotNull(characterNode)
 
     // Recreate only the TextureView and renderer after resize; the scene graph and model nodes stay alive.
-    key(configuration.screenWidthDp, configuration.screenHeightDp) {
+    key(configuration.screenWidthDp, configuration.screenHeightDp, compact) {
         SceneView(
             modifier = modifier,
             surfaceType = SurfaceType.TextureSurface,
@@ -182,13 +183,26 @@ internal fun ProfileCharacter(
 }
 
 // Slots follow acquisition order, independently of the destination category.
-internal fun destinationPropPosition(slot: Int): Position =
-    when (slot) {
-        0 -> Position(0.62f, -0.46f, 0f)
-        1 -> Position(-0.62f, -0.46f, 0f)
-        2 -> Position(1.18f, -0.46f, 0f)
-        3 -> Position(-1.18f, -0.46f, 0f)
-        else -> Position(-0.85f, -0.10f, -0.12f)
+internal fun destinationPropPosition(
+    slot: Int,
+    compact: Boolean = false,
+): Position =
+    if (compact) {
+        when (slot) {
+            0 -> Position(0.55f, -0.46f, 0f)
+            1 -> Position(-0.55f, -0.46f, 0f)
+            2 -> Position(0.70f, -0.02f, 0f)
+            3 -> Position(-0.70f, -0.02f, 0f)
+            else -> Position(-0.65f, 0.43f, -0.12f)
+        }
+    } else {
+        when (slot) {
+            0 -> Position(0.62f, -0.46f, 0f)
+            1 -> Position(-0.62f, -0.46f, 0f)
+            2 -> Position(1.18f, -0.46f, 0f)
+            3 -> Position(-1.18f, -0.46f, 0f)
+            else -> Position(-0.85f, -0.10f, -0.12f)
+        }
     }
 
 @Composable
@@ -197,6 +211,7 @@ private fun rememberDestinationPropNodes(
     engine: Engine,
     sceneNodeManager: SceneNodeManager,
     selectedCategories: List<DestinationCategory>,
+    compact: Boolean,
 ): List<RiggedModelNode> {
     val categories = selectedCategories.distinct().take(5)
     val nodes = mutableListOf<RiggedModelNode>()
@@ -223,7 +238,9 @@ private fun rememberDestinationPropNodes(
                 SideEffect {
                     val slot = categories.indexOf(category)
                     node.isVisible = slot >= 0
-                    if (slot >= 0) node.position = destinationPropPosition(slot)
+                    if (slot >= 0) node.position = destinationPropPosition(slot, compact)
+                    // Keep prop size stable while the compact viewport enlarges the character.
+                    node.scaleToUnitCube(if (compact) 0.44f / 1.25f else 0.44f)
                 }
                 DisposableEffect(sceneNodeManager, node) {
                     sceneNodeManager.addNode(node)

@@ -58,12 +58,12 @@ class HomeLayoutTest {
         }
         // Use real Activity/Choreographer frames: a virtual Compose test clock cannot
         // drive Filament's native render lifecycle.
-        for ((split, count) in listOf(false to 2, false to 3, false to 4, false to 5, true to 5)) {
+        for ((split, count) in listOf(false to 5, true to 2, true to 3, true to 4, true to 5, false to 5)) {
             instrumentation.runOnMainSync {
                 narrow.value = split
                 propCount.intValue = count
             }
-            Thread.sleep(if (count == 2) 10000 else 3000)
+            Thread.sleep(if (!split) 10000 else 3000)
             ParcelFileDescriptor
                 .AutoCloseInputStream(
                     instrumentation.uiAutomation.executeShellCommand(
