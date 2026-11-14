@@ -33,7 +33,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import com.triparchive.core.designsystem.TripArchiveTheme
-import com.triparchive.data.navigation.DestinationCategory
+import com.triparchive.domain.navigation.DestinationCategory
+import com.triparchive.presentation.home.label
 import com.triparchive.presentation.management.Gray
 import com.triparchive.presentation.management.Ink
 import com.triparchive.presentation.management.Pink

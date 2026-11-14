@@ -51,7 +51,7 @@ interface RecordDao {
                 index,
                 name,
                 ->
-                TripStop(tripId = id, position = index, placeName = name)
+                TripStop(tripId = id, position = index, placeName = name.placeName, category = name.category?.name)
             },
         )
         return id

@@ -6,7 +6,7 @@
 
 ## 분류 입력 경계
 
-화면은 목적지 이름을 보고 분류하지 않는다. `DestinationState.category`와 `arrivedCategory`만 사용한다. 현재 `PleosDestinationSource`는 목적지 이름만 받기 때문에 `category = null`을 보낸다. #23 분류 제공자는 이 경계에서 분류를 전달해야 한다. 목적지 이름 규칙이나 임의의 문자열 목록을 UI에 추가하지 않는다.
+화면은 목적지 이름을 보고 분류하지 않는다. `DestinationState.current`와 `pendingArrival`에 포함된 카테고리를 사용한다. `PleosDestinationSource`는 SDK에서 받은 이름·좌표로 분류를 조회하고 같은 방문 ID의 목적지에만 결과를 반영한다. 도착 확인 대기의 분류가 없을 때 새 현재 목적지의 분류를 대신 사용하지 않는다. 음식점 분류 `FOOD`는 `restaurant.glb` 소품으로 표시한다. 목적지 이름 규칙이나 임의의 문자열 목록을 UI에 추가하지 않는다.
 
 새 경로의 분류는 `destinationChanged(name, category)`로 전달한다. 경로 취소는 활성 이름과 분류를 함께 지운다. 도착 이벤트는 활성 목적지 이름과 일치하는 분류만 `arrivedCategory`로 옮기며, 도착 확인 시 도착 이름과 분류를 함께 지운다.
 

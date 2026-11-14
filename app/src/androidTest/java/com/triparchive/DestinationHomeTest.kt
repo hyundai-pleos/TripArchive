@@ -15,10 +15,12 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.test.platform.app.InstrumentationRegistry
 import com.triparchive.core.designsystem.TripArchiveTheme
-import com.triparchive.data.navigation.DestinationCategory
-import com.triparchive.data.navigation.DestinationState
 import com.triparchive.data.profile.Profile
 import com.triparchive.data.profile.ProfileRelationship
+import com.triparchive.domain.navigation.CategoryLookupStatus
+import com.triparchive.domain.navigation.Destination
+import com.triparchive.domain.navigation.DestinationCategory
+import com.triparchive.domain.navigation.DestinationState
 import com.triparchive.presentation.home.DestinationHome
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
@@ -38,7 +40,13 @@ class DestinationHomeTest {
         var finished = 0
         compose.setContent {
             TripArchiveTheme {
-                DestinationHome(Profile(1, "준", ProfileRelationship.PARENT), {}, { finished++ }, state)
+                DestinationHome(
+                    Profile(1, "준", ProfileRelationship.PARENT),
+                    {},
+                    { finished++ },
+                    state,
+                    renderCharacter = false,
+                )
             }
         }
         compose.onNodeWithText("준님과 여행하고 있어요.").assertIsDisplayed()
@@ -46,7 +54,7 @@ class DestinationHomeTest {
         captureIfRequested("home-no-destination")
         compose.onNodeWithText("여행 마치기").performClick()
         compose.onNodeWithText("취소").performClick()
-        compose.runOnIdle { state.value = DestinationState("안목해변", routing = true) }
+        compose.runOnIdle { state.value = DestinationTestFixtures.active("안목해변") }
         compose.onNodeWithText("안목해변").assertIsDisplayed()
         compose.onNodeWithText("목적지를 설정하면 기록이 시작됩니다").assertDoesNotExist()
         captureIfRequested("home-destination")
@@ -54,18 +62,113 @@ class DestinationHomeTest {
         compose.onNodeWithText("취소").performClick()
         compose.runOnIdle {
             assertEquals(0, finished)
-            state.value = state.value.arrive("안목해변")
+            state.value =
+                state.value.copy(
+                    pendingArrival = state.value.current ?: DestinationTestFixtures.place("안목해변"),
+                    current = null,
+                    routing = false,
+                )
         }
         compose.onNodeWithText("안목해변에 도착했어요!").assertIsDisplayed()
         compose.onNodeWithText("도착 확인하고 계속하기").performClick()
         compose.onNodeWithText("안목해변에 도착했어요!").assertDoesNotExist()
-        compose.runOnIdle { state.value = DestinationState("시장", routing = true) }
+        compose.runOnIdle { state.value = DestinationTestFixtures.active("시장", id = 2) }
         compose.onNodeWithText("시장").assertIsDisplayed()
-        compose.runOnIdle { state.value = state.value.routeChanged(false) }
+        compose.runOnIdle { state.value = state.value.copy(current = null, routing = false) }
         compose.onNodeWithText("목적지를 설정하면 기록이 시작됩니다").assertIsDisplayed()
         compose.onNodeWithText("여행 마치기").performClick()
         compose.onNodeWithText("마치기").performClick()
         compose.runOnIdle { assertEquals(1, finished) }
+    }
+
+    @Test
+    fun categoryLookupShowsLoadingSuccessAndFailure() {
+        val state =
+            MutableStateFlow(DestinationTestFixtures.active("서울역", categoryStatus = CategoryLookupStatus.LOADING))
+        compose.setContent {
+            TripArchiveTheme {
+                DestinationHome(Profile(1, "준", ProfileRelationship.PARENT), {}, {}, state, renderCharacter = false)
+            }
+        }
+        compose.onNodeWithText("[임시] 카테고리 조회 중").assertIsDisplayed()
+        compose.runOnIdle {
+            state.value =
+                state.value.copy(
+                    current =
+                        state.value.current!!.copy(
+                            category = DestinationCategory.FOOD,
+                            categoryStatus = CategoryLookupStatus.SUCCESS,
+                        ),
+                )
+        }
+        compose.onNodeWithText("[임시] 카테고리 조회 성공").assertIsDisplayed()
+        compose.onNodeWithText("분류: 음식점").assertIsDisplayed()
+        compose.runOnIdle {
+            state.value =
+                state.value.copy(
+                    current =
+                        state.value.current!!.copy(
+                            categoryStatus = CategoryLookupStatus.FAILURE,
+                            categoryFailure = "카카오 API 응답 오류 (401)",
+                        ),
+                )
+        }
+        compose.onNodeWithText("[임시] 카테고리 조회 실패 (무작위 배정)").assertIsDisplayed()
+        compose.onNodeWithText("카카오 API 응답 오류 (401)").assertIsDisplayed()
+    }
+
+    @Test
+    fun automaticArrivalUsesLatestCategoryWithoutRestartingCountdown() {
+        val state = MutableStateFlow(DestinationTestFixtures.arrived("시장", category = DestinationCategory.MART))
+        val recorded = mutableListOf<DestinationCategory?>()
+        compose.setContent {
+            TripArchiveTheme {
+                DestinationHome(
+                    Profile(1, "준", ProfileRelationship.PARENT),
+                    {},
+                    {},
+                    state,
+                    renderCharacter = false,
+                    onArrival = { recorded.add(it.category) },
+                )
+            }
+        }
+        compose.onNodeWithText("5").assertIsDisplayed()
+        compose.mainClock.advanceTimeBy(2000)
+        compose.onNodeWithText("3").assertIsDisplayed()
+        compose.runOnIdle {
+            state.value =
+                state.value.copy(
+                    pendingArrival =
+                        state.value.pendingArrival!!.copy(
+                            category = DestinationCategory.FOOD,
+                            categoryStatus = CategoryLookupStatus.SUCCESS,
+                        ),
+                )
+        }
+        compose.mainClock.advanceTimeBy(3100)
+        compose.runOnIdle { assertEquals(listOf(DestinationCategory.FOOD), recorded) }
+    }
+
+    @Test
+    fun uiDoesNotAssignCategoryWhileLookupIsPending() {
+        val state =
+            MutableStateFlow(DestinationTestFixtures.arrived("시장", categoryStatus = CategoryLookupStatus.LOADING))
+        val recorded = mutableListOf<DestinationCategory?>()
+        compose.setContent {
+            TripArchiveTheme {
+                DestinationHome(
+                    Profile(1, "준", ProfileRelationship.PARENT),
+                    {},
+                    {},
+                    state,
+                    renderCharacter = false,
+                    onArrival = { recorded.add(it.category) },
+                )
+            }
+        }
+        compose.onNodeWithText("도착 확인하고 계속하기").performClick()
+        compose.runOnIdle { assertEquals(listOf<DestinationCategory?>(null), recorded) }
     }
 
     @Test
@@ -77,7 +180,8 @@ class DestinationHomeTest {
                     Profile(1, "준", ProfileRelationship.PARENT),
                     {},
                     {},
-                    MutableStateFlow(DestinationState("시장", routing = true)),
+                    MutableStateFlow(DestinationTestFixtures.active("시장", id = 2)),
+                    renderCharacter = false,
                 )
             }
         }
@@ -88,18 +192,26 @@ class DestinationHomeTest {
     fun demoArrivalPreservesSdkStateAndSupportsResetAndFinish() {
         assumeTrue(BuildConfig.ARRIVAL_DEMO)
         val state = MutableStateFlow(DestinationState())
+        val source = FakeDestinationSource(state)
         var finished = 0
         compose.setContent {
             TripArchiveTheme {
-                DestinationHome(Profile(1, "준", ProfileRelationship.PARENT), {}, { finished++ }, state)
+                DestinationHome(
+                    Profile(1, "준", ProfileRelationship.PARENT),
+                    {},
+                    { finished++ },
+                    state,
+                    renderCharacter = false,
+                    simulateArrival = source::createDemoArrival,
+                )
             }
         }
         compose.onNodeWithText("도착 재현").assertIsNotEnabled()
-        compose.runOnIdle { state.value = DestinationState("시장", routing = true) }
+        compose.runOnIdle { state.value = DestinationTestFixtures.active("시장", id = 2) }
         compose.onNodeWithText("도착 재현").performClick()
         compose.onNodeWithText("시장에 도착했어요!").assertIsDisplayed()
         // A real SDK refresh/change must not interrupt the simulated arrival screen.
-        compose.runOnIdle { state.value = DestinationState("해변", routing = true) }
+        compose.runOnIdle { state.value = DestinationTestFixtures.active("해변", id = 3) }
         compose.onNodeWithText("시장에 도착했어요!").assertIsDisplayed()
         compose.onNodeWithText("도착 확인하고 계속하기").performClick()
         compose.onNodeWithText("해변").assertIsDisplayed()
@@ -115,23 +227,37 @@ class DestinationHomeTest {
         compose.onNodeWithText("마치기").performClick()
         compose.runOnIdle {
             assertEquals(1, finished)
-            assertEquals(DestinationState("해변", routing = true), state.value)
+            assertEquals(DestinationTestFixtures.active("해변", id = 3), state.value)
         }
         compose.onNode(isDialog()).assertDoesNotExist()
-        compose.runOnIdle { state.value = state.value.arrive("해변") }
+        compose.runOnIdle {
+            state.value =
+                state.value.copy(
+                    pendingArrival = state.value.current ?: DestinationTestFixtures.place("해변"),
+                    current = null,
+                    routing = false,
+                )
+        }
         compose.onNode(isDialog()).assertDoesNotExist()
         compose.runOnIdle { assertEquals(1, finished) }
     }
 
     @Test
     fun arrivalDialogCountsDownAndPausesDuringFinishConfirmation() {
-        val state = MutableStateFlow(DestinationState("안목해변", routing = true))
+        val state = MutableStateFlow(DestinationTestFixtures.active("안목해변"))
         compose.setContent {
             TripArchiveTheme {
-                DestinationHome(Profile(1, "준", ProfileRelationship.PARENT), {}, {}, state)
+                DestinationHome(Profile(1, "준", ProfileRelationship.PARENT), {}, {}, state, renderCharacter = false)
             }
         }
-        compose.runOnIdle { state.value = state.value.arrive("안목해변") }
+        compose.runOnIdle {
+            state.value =
+                state.value.copy(
+                    pendingArrival = state.value.current ?: DestinationTestFixtures.place("안목해변"),
+                    current = null,
+                    routing = false,
+                )
+        }
         compose.onNodeWithText("안목해변에 도착했어요!").assertIsDisplayed()
         compose.onNodeWithText("5").assertIsDisplayed()
         captureIfRequested("arrival-dialog", dialog = true)
@@ -152,10 +278,11 @@ class DestinationHomeTest {
 
     @Test
     fun homeIsDimmedWhileArrivalOrFinishDialogIsVisible() {
-        val state = MutableStateFlow(DestinationState("안목해변", routing = true))
+        val state = MutableStateFlow(DestinationTestFixtures.active("안목해변"))
         compose.setContent {
             TripArchiveTheme {
-                DestinationHome(Profile(1, "준", ProfileRelationship.PARENT), {}, {}, state)
+                DestinationHome(Profile(1, "준", ProfileRelationship.PARENT), {
+                }, {}, state, renderCharacter = false, drawBackground = false)
             }
         }
 
@@ -167,7 +294,14 @@ class DestinationHomeTest {
             assertEquals(expected, color.blue, 0.02f)
         }
         assertBackground(1f)
-        compose.runOnIdle { state.value = state.value.arrive("안목해변") }
+        compose.runOnIdle {
+            state.value =
+                state.value.copy(
+                    pendingArrival = state.value.current ?: DestinationTestFixtures.place("안목해변"),
+                    current = null,
+                    routing = false,
+                )
+        }
         compose.onNodeWithText("안목해변에 도착했어요!").assertIsDisplayed()
         assertBackground(0.8f)
         compose.onNodeWithText("여기서 여행 마치기").performClick()
@@ -185,16 +319,35 @@ class DestinationHomeTest {
         compose.setContent {
             TripArchiveTheme {
                 // Keep the outgoing screen composed, as it is during a navigation transition.
-                DestinationHome(Profile(1, "준", ProfileRelationship.PARENT), {}, { finished++ }, state)
+                DestinationHome(
+                    Profile(1, "준", ProfileRelationship.PARENT),
+                    {},
+                    { finished++ },
+                    state,
+                    renderCharacter = false,
+                    drawBackground = false,
+                )
             }
         }
-        compose.runOnIdle { state.value = state.value.arrive("안목해변") }
+        compose.runOnIdle {
+            state.value =
+                state.value.copy(
+                    pendingArrival = state.value.current ?: DestinationTestFixtures.place("안목해변"),
+                    current = null,
+                    routing = false,
+                )
+        }
         compose.onNodeWithText("여기서 여행 마치기").performClick()
         compose.onNodeWithText("마치기").performClick()
         compose.onNode(isDialog()).assertDoesNotExist()
         compose.runOnIdle {
             assertEquals(1, finished)
-            state.value = DestinationState("시장", arrived = "시장", routing = true)
+            state.value =
+                DestinationState(
+                    current = DestinationTestFixtures.place("병원", 2),
+                    pendingArrival = DestinationTestFixtures.place("시장", 1),
+                    routing = true,
+                )
         }
         compose.mainClock.advanceTimeBy(6000)
         compose.onNode(isDialog()).assertDoesNotExist()
@@ -204,25 +357,104 @@ class DestinationHomeTest {
     }
 
     @Test
+    fun nextDestinationAndLateLookupCannotChangePendingArrivalIdentity() {
+        val market = DestinationTestFixtures.place("시장", 1, status = CategoryLookupStatus.LOADING)
+        val hospital =
+            DestinationTestFixtures.place(
+                "병원",
+                2,
+                DestinationCategory.HOSPITAL,
+                CategoryLookupStatus.SUCCESS,
+            )
+        val state = MutableStateFlow(DestinationState(pendingArrival = market))
+        val recorded = mutableListOf<Destination>()
+        compose.setContent {
+            TripArchiveTheme {
+                DestinationHome(
+                    Profile(1, "준", ProfileRelationship.PARENT),
+                    {},
+                    {},
+                    state,
+                    renderCharacter = false,
+                    onArrival = { recorded.add(it) },
+                )
+            }
+        }
+        compose.onNodeWithText("5").assertIsDisplayed()
+        compose.mainClock.advanceTimeBy(2000)
+        compose.runOnIdle {
+            state.value =
+                state.value.copy(
+                    current = hospital,
+                    routing = true,
+                    pendingArrival =
+                        market.copy(
+                            category = DestinationCategory.MART,
+                            categoryStatus = CategoryLookupStatus.SUCCESS,
+                        ),
+                )
+        }
+        compose.mainClock.advanceTimeBy(3100)
+        compose.runOnIdle {
+            assertEquals(1, recorded.size)
+            assertEquals(market.id, recorded.single().id)
+            assertEquals("시장", recorded.single().name)
+            assertEquals(DestinationCategory.MART, recorded.single().category)
+        }
+        compose.runOnIdle {
+            state.value =
+                state.value.copy(
+                    current = hospital.copy(category = DestinationCategory.FOOD),
+                )
+        }
+        compose.mainClock.advanceTimeBy(6000)
+        compose.runOnIdle { assertEquals(1, recorded.size) }
+    }
+
+    @Test
+    fun revisitingSameNameWithNewIdShowsANewArrivalCountdown() {
+        val first = DestinationTestFixtures.place("시장", 1, DestinationCategory.MART)
+        val second = first.copy(id = 2)
+        val state = MutableStateFlow(DestinationState(pendingArrival = first))
+        val recorded = mutableListOf<Long>()
+        compose.setContent {
+            TripArchiveTheme {
+                DestinationHome(
+                    Profile(1, "준", ProfileRelationship.PARENT),
+                    {},
+                    {},
+                    state,
+                    renderCharacter = false,
+                    onArrival = { recorded.add(it.id) },
+                )
+            }
+        }
+        compose.onNodeWithText("도착 확인하고 계속하기").performClick()
+        compose.runOnIdle { state.value = DestinationState(pendingArrival = second) }
+        compose.onNodeWithText("5").assertIsDisplayed()
+        compose.mainClock.advanceTimeBy(5100)
+        compose.runOnIdle { assertEquals(listOf(1L, 2L), recorded) }
+    }
+
+    @Test
     fun arrivalCategoryDoesNotFallBackToTheNextActiveDestination() {
+        val hospital = DestinationTestFixtures.place("강릉아산병원", 2, DestinationCategory.HOSPITAL)
         val state =
             MutableStateFlow(
                 DestinationState(
-                    name = "강릉아산병원",
-                    arrived = "성심당 DCC점",
+                    current = hospital,
+                    pendingArrival = DestinationTestFixtures.place("성심당 DCC점", 1),
                     routing = true,
-                    category = DestinationCategory.HOSPITAL,
-                    arrivedCategory = null,
                 ),
             )
         var renderedCategory: DestinationCategory? = DestinationCategory.MART
         compose.setContent {
             TripArchiveTheme {
                 DestinationHome(
-                    profile = Profile(1, "준", ProfileRelationship.PARENT),
-                    onProfileClick = {},
-                    onFinish = {},
-                    source = state,
+                    Profile(1, "준", ProfileRelationship.PARENT),
+                    {},
+                    {},
+                    state,
                     renderCharacter = false,
                     onDestinationCategoryChange = { renderedCategory = it },
                 )
@@ -231,10 +463,7 @@ class DestinationHomeTest {
         compose.waitForIdle()
         compose.runOnIdle { assertNull(renderedCategory) }
         compose.onNodeWithText("병원").assertDoesNotExist()
-
-        compose.runOnIdle {
-            state.value = DestinationState("강릉아산병원", routing = true, category = DestinationCategory.HOSPITAL)
-        }
+        compose.runOnIdle { state.value = state.value.copy(pendingArrival = null) }
         compose.runOnIdle { assertEquals(DestinationCategory.HOSPITAL, renderedCategory) }
         compose.onNodeWithText("병원").assertIsDisplayed()
     }

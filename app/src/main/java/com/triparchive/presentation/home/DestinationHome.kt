@@ -33,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -48,10 +47,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.triparchive.R
-import com.triparchive.data.navigation.DestinationCategory
-import com.triparchive.data.navigation.DestinationState
-import com.triparchive.data.navigation.PleosDestinationSource
 import com.triparchive.data.profile.Profile
+import com.triparchive.domain.navigation.Destination
+import com.triparchive.domain.navigation.DestinationCategory
+import com.triparchive.domain.navigation.DestinationState
 import com.triparchive.presentation.LocalDrivingRestricted
 import com.triparchive.presentation.home.components.ArrivalDialog
 import com.triparchive.presentation.home.components.HomeDestinationSheet
@@ -69,29 +68,29 @@ fun DestinationHome(
     profile: Profile,
     onProfileClick: () -> Unit,
     onFinish: () -> Unit,
-    source: Flow<DestinationState>? = null,
+    source: Flow<DestinationState>,
     modifier: Modifier = Modifier,
     renderCharacter: Boolean = true,
     drawBackground: Boolean = true,
     tripSessionId: String? = null,
     onCompleteTrip: suspend (String) -> Boolean = { true },
     onMapClick: () -> Unit = {},
-    onArrival: (String) -> Unit = {},
-    saveTrip: suspend (String?) -> Boolean = { true },
+    onArrival: (Destination) -> Unit = {},
+    simulateArrival: (Destination) -> Destination? = { null },
+    saveTrip: suspend (Destination?) -> Boolean = { true },
     onDestinationCategoryChange: (DestinationCategory?) -> Unit = {},
 ) {
-    val context = LocalContext.current
     val drivingRestricted = LocalDrivingRestricted.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var destination by remember(profile.id) { mutableStateOf(DestinationState()) }
-    var acknowledged by remember(profile.id) { mutableStateOf<String?>(null) }
+    var acknowledged by remember(profile.id) { mutableStateOf<Long?>(null) }
     var confirm by remember(profile.id) { mutableStateOf(false) }
     var finishing by remember(profile.id) { mutableStateOf(false) }
     var pendingFinishSessionId by remember(profile.id) { mutableStateOf<String?>(null) }
     var finishError by remember(profile.id) { mutableStateOf(false) }
     var saving by remember(profile.id) { mutableStateOf(false) }
     var saveError by remember(profile.id) { mutableStateOf(false) }
-    val demoInput = rememberDestinationDemoInput(profile.id)
+    val demoInput = rememberDestinationDemoInput(profile.id, simulateArrival)
     val demoDestination = demoInput.destination.value
     val effectiveDestination = demoDestination ?: destination
     val latestCategoryChange by rememberUpdatedState(onDestinationCategoryChange)
@@ -111,59 +110,44 @@ fun DestinationHome(
     LaunchedEffect(profile.id, lifecycle, source, finishing, demoDestination == null) {
         if (finishing || demoDestination != null) return@LaunchedEffect
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            (source ?: PleosDestinationSource(context.applicationContext).observe()).collect {
-                if (it.routing && it.name != null) acknowledged = null
+            source.collect {
                 destination = it
             }
         }
     }
-    LaunchedEffect(profile.id, demoDestination?.name, demoDestination?.routing) {
-        if (demoDestination?.routing == true && demoDestination.name != null) acknowledged = null
-    }
-    var demoArrival by remember(profile.id) { mutableStateOf<String?>(null) }
+    var demoArrival by remember(profile.id) { mutableStateOf<Destination?>(null) }
     val arrival =
         if (finishing) {
             null
         } else {
-            demoArrival ?: effectiveDestination.arrived?.takeUnless { it == acknowledged }
-        }
-    val arrivalCategory =
-        when {
-            arrival == null -> null
-            demoArrival != null -> effectiveDestination.category.takeIf { effectiveDestination.name == arrival }
-            else -> effectiveDestination.arrivedCategory
-        }
-    val destinationCategory =
-        if (arrival != null) {
-            arrivalCategory
-        } else {
-            effectiveDestination.category.takeIf {
-                effectiveDestination.routing && effectiveDestination.name != null
-            }
+            demoArrival
+                ?: effectiveDestination.pendingArrival?.takeUnless { it.id == acknowledged }
         }
     val acknowledgeArrival = {
         if (!confirm && !finishing) {
             arrival?.let(onArrival)
-            acknowledged = arrival
             if (demoDestination != null) demoInput.acknowledge()
+            acknowledged = arrival?.id
             demoArrival = null
         }
     }
+    val destinationCategory =
+        arrival?.category
+            ?: effectiveDestination.current?.category?.takeIf { arrival == null && effectiveDestination.routing }
     LaunchedEffect(profile.id, destinationCategory, finishing) {
         latestCategoryChange(if (finishing) null else destinationCategory)
     }
-    DisposableEffect(profile.id) {
-        onDispose { latestCategoryChange(null) }
-    }
-    var secondsRemaining by remember(profile.id, arrival) { mutableIntStateOf(5) }
-    LaunchedEffect(arrival, confirm, lifecycle) {
+    DisposableEffect(profile.id) { onDispose { latestCategoryChange(null) } }
+    val currentAcknowledgeArrival by rememberUpdatedState(acknowledgeArrival)
+    var secondsRemaining by remember(profile.id, arrival?.id) { mutableIntStateOf(5) }
+    LaunchedEffect(arrival?.id, confirm, lifecycle) {
         if (arrival != null && !confirm) {
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 while (secondsRemaining > 0) {
                     delay(1000)
                     secondsRemaining--
                 }
-                acknowledgeArrival()
+                currentAcknowledgeArrival()
             }
         }
     }
@@ -186,20 +170,19 @@ fun DestinationHome(
             destinationCategory = destinationCategory,
             background = if (drawBackground) painterResource(R.drawable.home_street_background) else null,
         )
+        CategoryLookupIndicator(effectiveDestination, Modifier.align(Alignment.TopCenter).padding(top = 12.dp))
         HomeDestinationSheet(
             nickname = profile.nickname,
-            destination =
-                arrival
-                    ?: effectiveDestination.name?.takeIf { effectiveDestination.routing && it.isNotBlank() },
+            category = destinationCategory,
+            destination = arrival?.name ?: effectiveDestination.current?.name?.takeIf { effectiveDestination.routing },
             scale = s,
             onFinish = { if (!finishing) confirm = true },
             modifier = Modifier.align(Alignment.BottomCenter),
-            category = destinationCategory,
         )
         if (arrival != null && !confirm) {
             ArrivalDialog(
-                destination = arrival,
-                category = arrivalCategory,
+                destination = arrival.name,
+                category = arrival.category,
                 secondsRemaining = secondsRemaining,
                 scale = s,
                 isDemo = demoArrival != null || demoDestination != null,
@@ -212,7 +195,7 @@ fun DestinationHome(
             demoInput = demoInput,
             isSimulating = demoArrival != null || (arrival != null && demoDestination != null),
             canSimulate = !finishing && arrival == null && !confirm,
-            onArrive = { demoArrival = it },
+            onArrive = { demoArrival = simulateArrival(it) },
             onReset = { demoArrival = null },
             modifier = Modifier.align(Alignment.TopStart).padding(start = (16 * s).dp, top = (144 * s).dp),
         )
@@ -255,8 +238,8 @@ fun DestinationHome(
                                         confirm = false
                                         demoArrival = null
                                         demoInput.reset()
-                                        destination = DestinationState()
                                         latestCategoryChange(null)
+                                        destination = DestinationState()
                                         finishing = true
                                     } else {
                                         saveError = true

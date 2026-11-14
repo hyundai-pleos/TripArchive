@@ -8,12 +8,15 @@ import androidx.compose.ui.test.performClick
 import androidx.room.Room
 import androidx.test.platform.app.InstrumentationRegistry
 import com.triparchive.BuildConfig
+import com.triparchive.DestinationTestFixtures
+import com.triparchive.FakeDestinationSource
 import com.triparchive.core.designsystem.TripArchiveTheme
 import com.triparchive.data.local.TripArchiveDatabase
-import com.triparchive.data.navigation.DestinationState
 import com.triparchive.data.profile.Profile
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.data.record.RoomRecordRepository
+import com.triparchive.domain.navigation.DestinationState
+import com.triparchive.domain.navigation.ResolveDestinationCategory
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -57,8 +60,8 @@ class TripRecordingDemoTest {
 
     @Test
     fun twoDemoArrivalsAndFinishSaveOrderedRecordForSelectedProfile() {
-        val source = MutableStateFlow(DestinationState("시장", routing = true))
-        val session = TripSessionViewModel(repository)
+        val source = MutableStateFlow(DestinationTestFixtures.active("시장"))
+        val session = TripSessionViewModel(repository, FakeDestinationSource(source), ResolveDestinationCategory())
         var finished = false
         compose.setContent {
             TripArchiveTheme {
@@ -69,6 +72,7 @@ class TripRecordingDemoTest {
                     source = source,
                     renderCharacter = false,
                     onArrival = session::recordArrival,
+                    simulateArrival = session::createDemoArrival,
                     saveTrip = { pending -> session.save(profileId, pending) },
                 )
             }
@@ -76,7 +80,7 @@ class TripRecordingDemoTest {
         compose.onNodeWithText("도착 재현").performClick()
         compose.onNodeWithText("시장에 도착했어요!").assertIsDisplayed()
         compose.onNodeWithText("도착 확인하고 계속하기").performClick()
-        compose.runOnIdle { source.value = DestinationState("해변", routing = true) }
+        compose.runOnIdle { source.value = DestinationTestFixtures.active("해변", id = 2) }
         compose.onNodeWithText("도착 재현").performClick()
         compose.onNodeWithText("해변에 도착했어요!").assertIsDisplayed()
         compose.onNodeWithText("도착 확인하고 계속하기").performClick()
@@ -99,8 +103,8 @@ class TripRecordingDemoTest {
 
     @Test
     fun finishFromArrivalIncludesPendingStopAndCancelDoesNotSave() {
-        val source = MutableStateFlow(DestinationState("해변", routing = true))
-        val session = TripSessionViewModel(repository)
+        val source = MutableStateFlow(DestinationTestFixtures.active("해변", id = 2))
+        val session = TripSessionViewModel(repository, FakeDestinationSource(source), ResolveDestinationCategory())
         var finished = false
         compose.setContent {
             TripArchiveTheme {
@@ -111,6 +115,7 @@ class TripRecordingDemoTest {
                     source = source,
                     renderCharacter = false,
                     onArrival = session::recordArrival,
+                    simulateArrival = session::createDemoArrival,
                     saveTrip = { pending -> session.save(profileId, pending) },
                 )
             }
@@ -137,8 +142,8 @@ class TripRecordingDemoTest {
 
     @Test
     fun failedSaveKeepsTripOpenAndRetrySavesItOnce() {
-        val source = MutableStateFlow(DestinationState("시장", routing = true))
-        val session = TripSessionViewModel(repository)
+        val source = MutableStateFlow(DestinationTestFixtures.active("시장"))
+        val session = TripSessionViewModel(repository, FakeDestinationSource(source), ResolveDestinationCategory())
         var attempts = 0
         var finished = false
         compose.setContent {
@@ -150,6 +155,7 @@ class TripRecordingDemoTest {
                     source = source,
                     renderCharacter = false,
                     onArrival = session::recordArrival,
+                    simulateArrival = session::createDemoArrival,
                     saveTrip = { pending ->
                         attempts++
                         if (attempts == 1) false else session.save(profileId, pending)

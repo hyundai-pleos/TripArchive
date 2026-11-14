@@ -5,6 +5,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.triparchive.data.profile.Profile
+import com.triparchive.domain.record.TripStopDraft
 
 @Entity(
     tableName = "trip_records",
@@ -44,6 +45,7 @@ data class TripStop(
     val tripId: Long,
     val position: Int,
     val placeName: String,
+    val category: String? = null,
 )
 
 data class NewTripRecord(
@@ -51,7 +53,7 @@ data class NewTripRecord(
     val startedAt: Long,
     val endedAt: Long,
     val distanceMeters: Long?,
-    val stops: List<String>,
+    val stops: List<TripStopDraft>,
 )
 
 data class TripRecordDetail(

@@ -14,7 +14,7 @@ import com.triparchive.data.trip.TripSessionEntity
 
 @Database(
     entities = [Profile::class, TripRecord::class, TripStop::class, TripSessionEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class TripArchiveDatabase : RoomDatabase() {
@@ -57,5 +57,12 @@ val MIGRATION_2_3 =
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS `trip_sessions` (`profileId` INTEGER NOT NULL, `sessionId` TEXT NOT NULL, `lookId` TEXT NOT NULL, `relationship` TEXT NOT NULL, `status` TEXT NOT NULL, `updatedAtMillis` INTEGER NOT NULL, PRIMARY KEY(`profileId`), FOREIGN KEY(`profileId`) REFERENCES `profiles`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)",
             )
+        }
+    }
+
+val MIGRATION_3_4 =
+    object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `trip_stops` ADD COLUMN `category` TEXT")
         }
     }

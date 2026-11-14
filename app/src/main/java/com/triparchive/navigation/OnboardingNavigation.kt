@@ -32,10 +32,10 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.triparchive.R
 import com.triparchive.data.character.CharacterLookCatalog
-import com.triparchive.data.navigation.DestinationCategory
 import com.triparchive.data.profile.MAX_PROFILES
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.data.trip.TripSessionStatus
+import com.triparchive.domain.navigation.DestinationCategory
 import com.triparchive.presentation.DrivingUxRestrictionsProvider
 import com.triparchive.presentation.LocalDrivingRestricted
 import com.triparchive.presentation.home.CharacterRenderResources
@@ -305,7 +305,9 @@ private fun OnboardingNavigationContent(
                                             backStack.add(VisitMap(profile.id))
                                         }
                                     },
+                                    source = tripSessionViewModel.destination,
                                     onArrival = tripSessionViewModel::recordArrival,
+                                    simulateArrival = tripSessionViewModel::createDemoArrival,
                                     saveTrip = { pendingArrival ->
                                         tripSessionViewModel.save(profile.id, pendingArrival)
                                     },
