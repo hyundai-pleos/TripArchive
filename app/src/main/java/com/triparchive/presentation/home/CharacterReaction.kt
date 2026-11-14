@@ -236,6 +236,9 @@ internal class CharacterReactionReducer(
 
     private fun updateTransitionTarget(nowMillis: Long) {
         val nextWeights = weightsFor(reaction)
+        if (reaction == CharacterReaction.MOVING) {
+            nextWeights[reaction.ordinal] = if (speedBand == CharacterReactionSpeedBand.STANDARD) 0.3f else 1f
+        }
         if (nextWeights.contentEquals(transitionToWeights)) return
         transitionFromWeights = interpolatedWeights(nowMillis)
         transitionToWeights = nextWeights
@@ -302,7 +305,7 @@ internal class CharacterReactionReducer(
                     CharacterReaction.CALM -> 0f
                     CharacterReaction.WAITING -> 0.82f
                     CharacterReaction.JOY -> 1f
-                    CharacterReaction.MOVING -> 0.8f
+                    CharacterReaction.MOVING -> 0.3f
                     CharacterReaction.WIND -> 0.9f
                 }
             weights[reaction.ordinal] = weight

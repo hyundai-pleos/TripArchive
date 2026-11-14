@@ -19,8 +19,8 @@ KEY = "characterReactions"
 NAMES = ["REACTION_CALM", "REACTION_WAITING", "REACTION_JOY", "REACTION_MOVING", "REACTION_WIND"]
 # eye height, eye smile arch, mouth width, mouth height
 POSES = [(0.90, 0.0, 0.85, 0.50), (0.45, -0.10, 0.82, 0.12),
-         (0.32, 0.22, 1.08, 1.12), (0.82, 0.05, 0.95, 0.72),
-         (0.58, 0.04, 0.90, 0.65)]
+         (0.30, 0.28, 1.20, 1.35), (1.08, 0.08, 1.15, 1.12),
+         (0.40, 0.04, 0.38, 0.65)]
 
 
 def bounds(points):

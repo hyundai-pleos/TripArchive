@@ -95,9 +95,9 @@ class CharacterReactionReducerTest {
         assertEquals(0f, atStart.morphWeights[CharacterReaction.MOVING.ordinal], 0.001f)
 
         val halfway = reducer.update(40f, 325L)
-        assertTrue(halfway.morphWeights[CharacterReaction.MOVING.ordinal] in 0.39f..0.41f)
+        assertTrue(halfway.morphWeights[CharacterReaction.MOVING.ordinal] in 0.14f..0.16f)
         val complete = reducer.update(40f, 650L)
-        assertEquals(0.8f, complete.morphWeights[CharacterReaction.MOVING.ordinal], 0.001f)
+        assertEquals(0.3f, complete.morphWeights[CharacterReaction.MOVING.ordinal], 0.001f)
         assertEquals(0f, complete.morphWeights[CharacterReaction.CALM.ordinal], 0.001f)
     }
 
@@ -143,5 +143,18 @@ class CharacterReactionReducerTest {
             assertEquals(CharacterReactionSpeedBand.KPH_100, reducer.update(105f, 8_000L).speedBand)
             assertEquals(CharacterReaction.WIND, reducer.update(105f, 8_100L).reaction)
         }
+    }
+
+    @Test
+    fun sixtyBandBlendsToDistinctMovingFaceAndBackWithoutChangingReaction() {
+        val reducer = CharacterReactionReducer()
+        reducer.update(40f, 0L)
+        reducer.update(65f, 1000L)
+        val entry = reducer.update(65f, 4000L)
+        assertEquals(CharacterReaction.MOVING, entry.reaction)
+        assertEquals(0.3f, entry.morphWeights[CharacterReaction.MOVING.ordinal], 0.001f)
+        assertEquals(1f, reducer.update(65f, 4650L).morphWeights[CharacterReaction.MOVING.ordinal], 0.001f)
+        reducer.update(55f, 6000L)
+        assertEquals(0.3f, reducer.update(55f, 6650L).morphWeights[CharacterReaction.MOVING.ordinal], 0.001f)
     }
 }
