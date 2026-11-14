@@ -285,7 +285,7 @@ private fun rememberCharacterNode(
         SideEffect(onReady)
         val latestMotionPresentation by rememberUpdatedState(motionPresentation)
         val reactionBinding = remember(engine, modelNode) { CharacterReactionBinding(engine, modelNode) }
-        LaunchedEffect(binding, animate) {
+        LaunchedEffect(binding, reactionBinding, animate) {
             if (!animate) return@LaunchedEffect
             val timeline = CharacterAnimationTimeline()
             val reactions = CharacterReactionReducer()
@@ -363,7 +363,7 @@ private fun rememberCharacterNode(
     }
     val latestMotionPresentation by rememberUpdatedState(motionPresentation)
     val reactionBinding = remember(engine, outfitNode) { CharacterReactionBinding(engine, outfitNode) }
-    LaunchedEffect(attachment, animate) {
+    LaunchedEffect(attachment, reactionBinding, animate) {
         if (!animate) return@LaunchedEffect
         val timeline = CharacterAnimationTimeline()
         val reactions = CharacterReactionReducer()
