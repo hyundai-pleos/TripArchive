@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -31,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.triparchive.core.designsystem.TripArchiveTheme
 import com.triparchive.data.record.TripRecord
+import com.triparchive.data.record.TripRecordDetail
+import com.triparchive.data.record.TripStop
 import com.triparchive.presentation.management.BackControl
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -60,7 +62,7 @@ internal fun RecordListScreen(
         val listState = rememberLazyListState()
         Column(Modifier.fillMaxSize()) {
             BackControl(scale, true, onBack)
-            LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
+            LazyColumn(state = listState, modifier = Modifier.weight(1f).testTag("record-list")) {
                 item {
                     Spacer(Modifier.height((48 * scale).dp))
                     Header("우리의 여행을 다시 만나봐요", "차곡차곡 쌓인 여행 기록을 확인해요", scale)
@@ -101,7 +103,12 @@ internal fun RecordDetailScreen(
     ScreenContainer { scale ->
         Column(Modifier.fillMaxSize()) {
             BackControl(scale, true, onBack)
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+            ) {
                 Spacer(Modifier.height((48 * scale).dp))
                 when (state) {
                     RecordDetailState.Loading -> {
@@ -141,7 +148,7 @@ internal fun RecordDetailScreen(
 @Composable
 private fun ScreenContainer(content: @Composable (Float) -> Unit) {
     Box(Modifier.fillMaxSize().background(Color.White).safeDrawingPadding(), contentAlignment = Alignment.TopCenter) {
-        BoxWithConstraints(Modifier.widthIn(max = 840.dp).fillMaxSize()) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
             val scale = (maxWidth.value / 840f).coerceIn(0.45f, 1f)
             Box(Modifier.fillMaxSize().padding(horizontal = (56 * scale).dp).padding(top = (40 * scale).dp)) {
                 content(scale)
@@ -188,6 +195,7 @@ private fun RecordCard(
             .heightIn(min = (172 * scale).dp)
             .background(Color(0xFFF8F8F8), RoundedCornerShape((20 * scale).dp))
             .clickable(interactionSource = null, indication = null, role = Role.Button, onClick = onClick)
+            .testTag("record-card-${record.id}")
             .padding(horizontal = (20 * scale).dp, vertical = (24 * scale).dp),
         verticalArrangement = Arrangement.Center,
     ) {
@@ -299,6 +307,7 @@ private fun formatDates(
 }
 
 @Preview(widthDp = 420, heightDp = 592, showBackground = true)
+@Preview(widthDp = 1280, heightDp = 720, showBackground = true)
 @Composable
 private fun RecordListPreview() {
     TripArchiveTheme {
@@ -311,5 +320,16 @@ private fun RecordListPreview() {
             {},
             {},
         )
+    }
+}
+
+@Preview(widthDp = 420, heightDp = 592, showBackground = true)
+@Preview(widthDp = 1280, heightDp = 720, showBackground = true)
+@Composable
+private fun RecordDetailPreview() {
+    val record = TripRecord(1, 1, "강릉 여행", 1793491200000, 1793664000000, 341000)
+    val stops = listOf(TripStop(1, 1, 0, "경포대"), TripStop(2, 1, 1, "안목해변"))
+    TripArchiveTheme {
+        RecordDetailScreen(RecordDetailState.Ready(TripRecordDetail(record, stops)), {}, {})
     }
 }

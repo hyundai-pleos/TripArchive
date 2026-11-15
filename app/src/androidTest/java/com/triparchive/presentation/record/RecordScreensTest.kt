@@ -8,11 +8,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.dp
 import com.triparchive.core.designsystem.TripArchiveTheme
 import com.triparchive.data.record.TripRecord
@@ -58,6 +60,37 @@ class RecordScreensTest {
     }
 
     @Test
+    fun listCardsFitNarrowPortraitWidth() {
+        assertListCardWidth(420, 592, 364)
+    }
+
+    @Test
+    fun listCardsFitPortraitWidth() {
+        assertListCardWidth(840, 1184, 728)
+    }
+
+    @Test
+    fun listCardsUseTheAvailableLandscapeWidth() {
+        assertListCardWidth(1280, 720, 1168)
+    }
+
+    @Test
+    fun wideListStillScrollsAndOpensSelectedRecord() {
+        val records = (1L..10L).map { id -> TripRecord(id, 1, "여행 $id", 0, 1, null) }
+        var selectedId: Long? = null
+        compose.setContent {
+            TripArchiveTheme {
+                Box(Modifier.requiredSize(1280.dp, 720.dp)) {
+                    RecordListScreen(RecordListState.Ready(records), {}, { selectedId = it }, {})
+                }
+            }
+        }
+        compose.onNodeWithTag("record-list").performScrollToNode(hasText("여행 10"))
+        compose.onNodeWithTag("record-card-10").assertIsDisplayed().performClick()
+        compose.runOnIdle { assertEquals(10L, selectedId) }
+    }
+
+    @Test
     fun detailDisplaysStopsInPositionOrder() {
         val record = TripRecord(1, 1, "여행 이름", 0, 1, null)
         val stops = listOf(TripStop(2, 1, 1, "두 번째 장소"), TripStop(1, 1, 0, "첫 번째 장소"))
@@ -97,5 +130,22 @@ class RecordScreensTest {
         }
         compose.onNodeWithTag("recordViewport").assertWidthIsEqualTo(width.dp).assertHeightIsEqualTo(height.dp)
         compose.onNodeWithText("방문 장소 10 아주 긴 장소 이름입니다").performScrollTo().assertExists()
+    }
+
+    private fun assertListCardWidth(
+        width: Int,
+        height: Int,
+        cardWidth: Int,
+    ) {
+        val record = TripRecord(1, 1, "강릉 여행", 0, 1, null)
+        compose.setContent {
+            TripArchiveTheme {
+                Box(Modifier.requiredSize(width.dp, height.dp).testTag("recordViewport")) {
+                    RecordListScreen(RecordListState.Ready(listOf(record)), {}, {}, {})
+                }
+            }
+        }
+        compose.onNodeWithTag("recordViewport").assertWidthIsEqualTo(width.dp)
+        compose.onNodeWithTag("record-card-1").assertWidthIsEqualTo(cardWidth.dp)
     }
 }
