@@ -5,6 +5,7 @@ import androidx.room.testing.MigrationTestHelper
 import androidx.test.platform.app.InstrumentationRegistry
 import com.triparchive.data.character.CharacterLookCatalog
 import com.triparchive.data.local.MIGRATION_4_5
+import com.triparchive.data.local.MIGRATION_5_6
 import com.triparchive.data.local.TripArchiveDatabase
 import com.triparchive.data.profile.Profile
 import com.triparchive.data.profile.ProfileRelationship
@@ -28,7 +29,7 @@ class TripSessionPropStorageTest {
     private fun open(name: String) =
         Room
             .databaseBuilder(context, TripArchiveDatabase::class.java, name)
-            .addMigrations(MIGRATION_4_5)
+            .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
             .build()
 
     @Test
