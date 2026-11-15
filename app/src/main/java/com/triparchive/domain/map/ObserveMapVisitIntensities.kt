@@ -18,7 +18,7 @@ class ObserveMapVisitIntensities
                 }
 
             return repository
-                .observeDistrictVisitCounts()
+                .observeDistrictVisitCounts(boundaries.districts)
                 .map { districtCounts ->
                     buildMap {
                         val provinceCounts = mutableMapOf<String, Long>()

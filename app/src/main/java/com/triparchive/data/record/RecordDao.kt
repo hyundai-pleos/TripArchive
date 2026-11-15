@@ -13,6 +13,12 @@ data class RecordWithStops(
     @Relation(parentColumn = "id", entityColumn = "tripId") val stops: List<TripStop>,
 )
 
+data class StopLocationCount(
+    val latitude: Double,
+    val longitude: Double,
+    val count: Int,
+)
+
 @Dao
 interface RecordDao {
     @Query("SELECT * FROM trip_records WHERE profileId = :profileId ORDER BY endedAt DESC, id DESC")
@@ -24,6 +30,15 @@ interface RecordDao {
         profileId: Long,
         recordId: Long,
     ): Flow<List<RecordWithStops>>
+
+    @Query(
+        """
+        SELECT latitude, longitude, COUNT(*) AS count FROM trip_stops
+        WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+        GROUP BY latitude, longitude
+        """,
+    )
+    fun observeStopLocationCounts(): Flow<List<StopLocationCount>>
 
     @Insert
     suspend fun insertRecord(record: TripRecord): Long
@@ -49,9 +64,16 @@ interface RecordDao {
         insertStops(
             record.stops.mapIndexed {
                 index,
-                name,
+                stop,
                 ->
-                TripStop(tripId = id, position = index, placeName = name.placeName, category = name.category?.name)
+                TripStop(
+                    tripId = id,
+                    position = index,
+                    placeName = stop.placeName,
+                    category = stop.category?.name,
+                    latitude = stop.latitude,
+                    longitude = stop.longitude,
+                )
             },
         )
         return id

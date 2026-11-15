@@ -17,7 +17,7 @@ import com.triparchive.data.trip.TripSessionPropEntity
     entities = [
         Profile::class, TripRecord::class, TripStop::class, TripSessionEntity::class, TripSessionPropEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class TripArchiveDatabase : RoomDatabase() {
@@ -82,5 +82,13 @@ val MIGRATION_4_5 =
             db.execSQL(
                 "CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_session_props_sessionId_acquiredOrder` ON `trip_session_props` (`sessionId`, `acquiredOrder`)",
             )
+        }
+    }
+
+val MIGRATION_5_6 =
+    object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE trip_stops ADD COLUMN latitude REAL")
+            db.execSQL("ALTER TABLE trip_stops ADD COLUMN longitude REAL")
         }
     }

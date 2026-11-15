@@ -114,8 +114,15 @@ internal class TripSessionViewModel
                     existing != null -> existing.category
                     else -> resolveCategory(null)
                 }
-            if (existing != null && existing.category == category && existing.placeName == name) return existing
-            return TripStopDraft(name, category).also { resolvedStops[chosen.id] = it }
+            val hasCoordinates =
+                chosen.latitude in -90.0..90.0 && chosen.longitude in -180.0..180.0 &&
+                    (chosen.latitude != 0.0 || chosen.longitude != 0.0)
+            return TripStopDraft(
+                placeName = name,
+                category = category,
+                latitude = chosen.latitude.takeIf { hasCoordinates } ?: existing?.latitude,
+                longitude = chosen.longitude.takeIf { hasCoordinates } ?: existing?.longitude,
+            ).also { resolvedStops[chosen.id] = it }
         }
 
         fun recordArrival(destination: Destination) {
