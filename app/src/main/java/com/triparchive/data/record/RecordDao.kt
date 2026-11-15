@@ -13,14 +13,44 @@ data class RecordWithStops(
     @Relation(parentColumn = "id", entityColumn = "tripId") val stops: List<TripStop>,
 )
 
+data class DistrictVisitCount(
+    val districtCode: String,
+    val visitCount: Int,
+)
+
 data class StopLocationCount(
     val latitude: Double,
     val longitude: Double,
     val count: Int,
 )
 
+data class DistrictLocationVisitCount(
+    val districtCode: String?,
+    val latitude: Double?,
+    val longitude: Double?,
+    val visitCount: Int,
+)
+
 @Dao
 interface RecordDao {
+    @Query(
+        "SELECT trip_stops.districtCode AS districtCode, COUNT(*) AS visitCount " +
+            "FROM trip_stops INNER JOIN trip_records ON trip_stops.tripId = trip_records.id " +
+            "WHERE trip_records.profileId = :profileId AND trip_stops.districtCode IS NOT NULL " +
+            "GROUP BY trip_stops.districtCode",
+    )
+    fun observeDistrictVisitCounts(profileId: Long): Flow<List<DistrictVisitCount>>
+
+    @Query(
+        "SELECT trip_stops.districtCode AS districtCode, trip_stops.latitude AS latitude, " +
+            "trip_stops.longitude AS longitude, COUNT(*) AS visitCount " +
+            "FROM trip_stops INNER JOIN trip_records ON trip_stops.tripId = trip_records.id " +
+            "WHERE trip_records.profileId = :profileId AND (trip_stops.districtCode IS NOT NULL OR " +
+            "(trip_stops.latitude IS NOT NULL AND trip_stops.longitude IS NOT NULL)) " +
+            "GROUP BY trip_stops.districtCode, trip_stops.latitude, trip_stops.longitude",
+    )
+    fun observeDistrictLocationVisitCounts(profileId: Long): Flow<List<DistrictLocationVisitCount>>
+
     @Query("SELECT * FROM trip_records WHERE profileId = :profileId ORDER BY endedAt DESC, id DESC")
     fun observeRecords(profileId: Long): Flow<List<TripRecord>>
 
@@ -71,6 +101,7 @@ interface RecordDao {
                     position = index,
                     placeName = stop.placeName,
                     category = stop.category?.name,
+                    districtCode = stop.districtCode,
                     latitude = stop.latitude,
                     longitude = stop.longitude,
                 )

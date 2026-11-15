@@ -15,6 +15,10 @@ import com.triparchive.data.profile.Profile
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.data.record.RoomRecordRepository
 import com.triparchive.data.trip.RoomTripSessionRepository
+import com.triparchive.domain.map.AdministrativeBoundaries
+import com.triparchive.domain.map.BoundaryRepository
+import com.triparchive.domain.map.GetAdministrativeBoundaries
+import com.triparchive.domain.map.ResolveDistricts
 import com.triparchive.domain.navigation.CategoryLookupResult
 import com.triparchive.domain.navigation.CategoryLookupStatus
 import com.triparchive.domain.navigation.Destination
@@ -52,6 +56,14 @@ class TripPropAccumulationTest {
                         RoomRecordRepository(database.recordDao()),
                         source,
                         ResolveDestinationCategory(),
+                        ResolveDistricts(
+                            GetAdministrativeBoundaries(
+                                object : BoundaryRepository {
+                                    override suspend fun getBoundaries() =
+                                        AdministrativeBoundaries(emptyList(), emptyList())
+                                },
+                            ),
+                        ),
                         sessions,
                     )
                 instrumentation.runOnMainSync { vm.startDestinationObservation(scope, id, first.sessionId) }

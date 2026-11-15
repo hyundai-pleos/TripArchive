@@ -8,10 +8,13 @@ import com.triparchive.data.profile.RoomProfileRepository
 import com.triparchive.data.record.NewTripRecord
 import com.triparchive.data.repository.map.BoundaryRepositoryImpl
 import com.triparchive.data.repository.map.RegionVisitCountRepositoryImpl
+import com.triparchive.domain.map.GetAdministrativeBoundaries
+import com.triparchive.domain.map.ResolveDistricts
 import com.triparchive.domain.record.TripStopDraft
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -27,8 +30,8 @@ class VisitMapHistoryTest {
             try {
                 val profile = RoomProfileRepository(database.profileDao()).create("아이", ProfileRelationship.CHILD)
                 val dao = database.recordDao()
-                val boundaries = BoundaryRepositoryImpl(context).getBoundaries()
-                val counts = RegionVisitCountRepositoryImpl(dao).observeDistrictVisitCounts(boundaries.districts)
+                val resolver = ResolveDistricts(GetAdministrativeBoundaries(BoundaryRepositoryImpl(context)))
+                val counts = RegionVisitCountRepositoryImpl(dao, resolver).observeDistrictVisitCounts(profile)
                 val updates = Channel<Map<String, Int>>(Channel.UNLIMITED)
                 val observer = launch(start = CoroutineStart.UNDISPATCHED) { counts.collect { updates.send(it) } }
                 try {
@@ -42,6 +45,21 @@ class VisitMapHistoryTest {
                         assertEquals(mapOf("11110" to 1), updates.receive())
                         dao.insertCompletedRecord(profile, NewTripRecord("다시 서울", 3, 4, null, listOf(stop)))
                         assertEquals(mapOf("11110" to 2), updates.receive())
+                        val savedCode = stop.copy(districtCode = "11110")
+                        dao.insertCompletedRecord(profile, NewTripRecord("새 기록", 5, 6, null, listOf(savedCode)))
+                        // A new stop with both a code and coordinates must contribute only once.
+                        assertEquals(mapOf("11110" to 3), updates.receive())
+                        val otherProfile =
+                            RoomProfileRepository(database.profileDao()).create("다른 가족", ProfileRelationship.PARENT)
+                        dao.insertCompletedRecord(otherProfile, NewTripRecord("가족 여행", 7, 8, null, listOf(stop)))
+                        assertEquals(mapOf("11110" to 3), counts.first())
+                        assertEquals(
+                            mapOf("11110" to 1),
+                            RegionVisitCountRepositoryImpl(
+                                dao,
+                                resolver,
+                            ).observeDistrictVisitCounts(otherProfile).first(),
+                        )
                     }
                 } finally {
                     observer.cancelAndJoin()

@@ -7,4 +7,5 @@ data class TripStopDraft(
     val category: DestinationCategory? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
+    val districtCode: String? = null,
 )

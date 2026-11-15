@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.triparchive.R
 import com.triparchive.core.designsystem.TripArchiveTheme
+import com.triparchive.data.profile.ProfileMapColor
 import com.triparchive.data.repository.map.BoundaryRepositoryImpl
 import com.triparchive.domain.map.ObserveMapVisitIntensities
 import com.triparchive.presentation.LocalDrivingRestricted
@@ -64,6 +65,7 @@ internal fun VisitMapScreen(
     onAction: (VisitMapAction) -> Unit,
     onBack: () -> Unit,
     onRecordsClick: () -> Unit = {},
+    mapColor: ProfileMapColor = ProfileMapColor.PINK,
     modifier: Modifier = Modifier,
 ) {
     val drivingRestricted = LocalDrivingRestricted.current
@@ -106,6 +108,7 @@ internal fun VisitMapScreen(
                             BoundaryCanvas(
                                 paths = paths,
                                 visitIntensities = content.visitIntensities,
+                                visitColor = Color(mapColor.argb),
                                 viewport = viewport,
                                 onAction = onAction,
                                 interactionsEnabled = !drivingRestricted,
@@ -345,7 +348,7 @@ private fun VisitMapPreview(viewport: MapViewport) {
         remember(context) {
             runBlocking {
                 val boundaries = BoundaryRepositoryImpl(context).getBoundaries()
-                val visitIntensities = ObserveMapVisitIntensities { flowOf(PreviewVisitCounts) }(boundaries).first()
+                val visitIntensities = ObserveMapVisitIntensities { flowOf(PreviewVisitCounts) }(boundaries, 1L).first()
                 VisitMapContent.Ready(boundaries, visitIntensities)
             }
         }

@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.triparchive.data.record.NewTripRecord
 import com.triparchive.data.record.RecordRepository
 import com.triparchive.data.trip.TripSessionRepository
+import com.triparchive.domain.map.GeoPoint
+import com.triparchive.domain.map.ResolveDistricts
 import com.triparchive.domain.navigation.CategoryLookupStatus
 import com.triparchive.domain.navigation.Destination
 import com.triparchive.domain.navigation.DestinationCategory
@@ -31,6 +33,7 @@ internal class TripSessionViewModel
         private val repository: RecordRepository,
         private val destinationSource: DestinationSource,
         private val resolveCategory: ResolveDestinationCategory,
+        private val resolveDistricts: ResolveDistricts,
         private val tripSessions: TripSessionRepository,
     ) : ViewModel() {
         val categorySelection = CategorySelectionState()
@@ -149,6 +152,22 @@ internal class TripSessionViewModel
                     saved = true
                     return true
                 }
+                val districtCodes =
+                    try {
+                        resolveDistricts(
+                            stops.map { stop ->
+                                val latitude = stop.latitude
+                                val longitude = stop.longitude
+                                if (latitude == null || longitude == null) null else GeoPoint(longitude, latitude)
+                            },
+                        )
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        // Region lookup must never prevent the trip record itself from being saved.
+                        List(stops.size) { null }
+                    }
+                val resolvedStops = stops.mapIndexed { index, stop -> stop.copy(districtCode = districtCodes[index]) }
                 val title =
                     if (stops.size ==
                         1
@@ -164,7 +183,7 @@ internal class TripSessionViewModel
                         startedAt = startedAt,
                         endedAt = System.currentTimeMillis(),
                         distanceMeters = null,
-                        stops = stops,
+                        stops = resolvedStops,
                     ),
                 )
                 saved = true

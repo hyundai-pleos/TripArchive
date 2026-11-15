@@ -5,9 +5,11 @@ import androidx.room.Room
 import androidx.test.platform.app.InstrumentationRegistry
 import com.triparchive.data.local.TripArchiveDatabase
 import com.triparchive.data.profile.Profile
+import com.triparchive.data.profile.ProfileMapColor
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.data.profile.ProfileRepository
 import com.triparchive.data.profile.RoomProfileRepository
+import com.triparchive.presentation.management.ProfileManagementViewModel
 import com.triparchive.presentation.onboarding.ProfileViewModel
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +29,53 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProfileStorageTest {
+    @Test
+    fun mapColorSaveRejectsConcurrentTapsAndAllowsRetry() =
+        runBlocking {
+            val repository = FakeRepository()
+            val viewModel = withContext(Dispatchers.Main) { ProfileManagementViewModel(repository) }
+            withContext(Dispatchers.Main) {
+                viewModel.updateMapColor(7, ProfileMapColor.BLUE)
+                viewModel.updateMapColor(7, ProfileMapColor.RED)
+                assertTrue(viewModel.state.value.busy)
+                assertEquals(1, repository.mapColorCalls)
+            }
+            repository.colorResult.completeExceptionally(IllegalStateException("Storage failed"))
+            withTimeout(5000) { viewModel.state.first { !it.busy && it.error != null } }
+            repository.colorResult = CompletableDeferred()
+            withContext(Dispatchers.Main) { viewModel.updateMapColor(7, ProfileMapColor.RED) }
+            repository.colorResult.complete(true)
+            withTimeout(5000) { viewModel.state.first { !it.busy && it.error == null } }
+            assertEquals(2, repository.mapColorCalls)
+        }
+
+    @Test
+    fun mapColorIsSavedPerProfileAndProfileEditDoesNotOverwriteIt() =
+        runBlocking {
+            val context = InstrumentationRegistry.getInstrumentation().targetContext
+            val name = "profile-map-color-${System.nanoTime()}.db"
+
+            fun open() = Room.databaseBuilder(context, TripArchiveDatabase::class.java, name).build()
+            var database = open()
+            try {
+                var repository = RoomProfileRepository(database.profileDao())
+                val first = repository.create("첫째", ProfileRelationship.PARENT)
+                val second = repository.create("둘째", ProfileRelationship.CHILD)
+                assertEquals(ProfileMapColor.PINK.name, repository.getById(first)?.mapColor)
+                assertTrue(repository.updateMapColor(first, ProfileMapColor.BLUE))
+                assertFalse(repository.updateMapColor(-1, ProfileMapColor.RED))
+                assertTrue(repository.update(first, "새 이름", ProfileRelationship.PARTNER))
+                database.close()
+                database = open()
+                repository = RoomProfileRepository(database.profileDao())
+                assertEquals(ProfileMapColor.BLUE.name, repository.getById(first)?.mapColor)
+                assertEquals(ProfileMapColor.PINK.name, repository.getById(second)?.mapColor)
+            } finally {
+                database.close()
+                context.deleteDatabase(name)
+            }
+        }
+
     @Test
     fun updatesAndDeletesPersistAndNotifyObservers() =
         runBlocking {
@@ -168,6 +217,8 @@ class ProfileStorageTest {
     private class FakeRepository : ProfileRepository {
         var calls = 0
         var result = CompletableDeferred<Long>()
+        var mapColorCalls = 0
+        var colorResult = CompletableDeferred<Boolean>()
 
         override suspend fun create(
             nickname: String,
@@ -184,6 +235,14 @@ class ProfileStorageTest {
             nickname: String,
             relationship: ProfileRelationship,
         ): Boolean = false
+
+        override suspend fun updateMapColor(
+            id: Long,
+            color: ProfileMapColor,
+        ): Boolean {
+            mapColorCalls++
+            return colorResult.await()
+        }
 
         override suspend fun delete(id: Long): Boolean = false
 

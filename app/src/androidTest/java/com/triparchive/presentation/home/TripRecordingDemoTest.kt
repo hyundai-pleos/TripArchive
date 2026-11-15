@@ -15,6 +15,10 @@ import com.triparchive.data.local.TripArchiveDatabase
 import com.triparchive.data.profile.Profile
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.data.record.RoomRecordRepository
+import com.triparchive.domain.map.AdministrativeBoundaries
+import com.triparchive.domain.map.BoundaryRepository
+import com.triparchive.domain.map.GetAdministrativeBoundaries
+import com.triparchive.domain.map.ResolveDistricts
 import com.triparchive.domain.navigation.DestinationState
 import com.triparchive.domain.navigation.ResolveDestinationCategory
 import com.triparchive.testing.RecordingTripSessions
@@ -29,6 +33,15 @@ import org.junit.Rule
 import org.junit.Test
 
 class TripRecordingDemoTest {
+    private fun emptyDistricts() =
+        ResolveDistricts(
+            GetAdministrativeBoundaries(
+                object : BoundaryRepository {
+                    override suspend fun getBoundaries() = AdministrativeBoundaries(emptyList(), emptyList())
+                },
+            ),
+        )
+
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
@@ -67,6 +80,7 @@ class TripRecordingDemoTest {
                 repository,
                 FakeDestinationSource(source),
                 ResolveDestinationCategory(),
+                emptyDistricts(),
                 RecordingTripSessions(),
             )
         var finished = false
@@ -116,6 +130,7 @@ class TripRecordingDemoTest {
                 repository,
                 FakeDestinationSource(source),
                 ResolveDestinationCategory(),
+                emptyDistricts(),
                 RecordingTripSessions(),
             )
         var finished = false
@@ -161,6 +176,7 @@ class TripRecordingDemoTest {
                 repository,
                 FakeDestinationSource(source),
                 ResolveDestinationCategory(),
+                emptyDistricts(),
                 RecordingTripSessions(),
             )
         var attempts = 0

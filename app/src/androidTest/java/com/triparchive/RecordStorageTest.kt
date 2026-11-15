@@ -8,6 +8,7 @@ import com.triparchive.data.local.MIGRATION_2_3
 import com.triparchive.data.local.MIGRATION_3_4
 import com.triparchive.data.local.MIGRATION_4_5
 import com.triparchive.data.local.MIGRATION_5_6
+import com.triparchive.data.local.MIGRATION_6_7
 import com.triparchive.data.local.TripArchiveDatabase
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.data.profile.RoomProfileRepository
@@ -35,8 +36,14 @@ class RecordStorageTest {
                         context,
                         TripArchiveDatabase::class.java,
                         name,
-                    ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
-                    .build()
+                    ).addMigrations(
+                        MIGRATION_1_2,
+                        MIGRATION_2_3,
+                        MIGRATION_3_4,
+                        MIGRATION_4_5,
+                        MIGRATION_5_6,
+                        MIGRATION_6_7,
+                    ).build()
             var database = open()
             try {
                 val profiles = RoomProfileRepository(database.profileDao())
@@ -159,8 +166,14 @@ class RecordStorageTest {
                         context,
                         TripArchiveDatabase::class.java,
                         name,
-                    ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
-                    .build()
+                    ).addMigrations(
+                        MIGRATION_1_2,
+                        MIGRATION_2_3,
+                        MIGRATION_3_4,
+                        MIGRATION_4_5,
+                        MIGRATION_5_6,
+                        MIGRATION_6_7,
+                    ).build()
             try {
                 val profile = database.profileDao().getById(42)
                 assertEquals("준", profile?.nickname)

@@ -1,10 +1,9 @@
 package com.triparchive.data.repository.map
 
 import com.triparchive.data.record.RecordDao
-import com.triparchive.domain.map.AdministrativeBoundary
-import com.triparchive.domain.map.BoundaryPolygon
 import com.triparchive.domain.map.GeoPoint
 import com.triparchive.domain.map.RegionVisitCountRepository
+import com.triparchive.domain.map.ResolveDistricts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
@@ -14,44 +13,32 @@ import javax.inject.Inject
 class RegionVisitCountRepositoryImpl
     @Inject
     constructor(
-        private val records: RecordDao,
+        private val recordDao: RecordDao,
+        private val resolveDistricts: ResolveDistricts,
     ) : RegionVisitCountRepository {
-        override fun observeDistrictVisitCounts(districts: List<AdministrativeBoundary>): Flow<Map<String, Int>> =
-            records
-                .observeStopLocationCounts()
-                .map { stops ->
-                    buildMap {
-                        for (stop in stops) {
-                            val point = GeoPoint(stop.longitude, stop.latitude)
-                            val district =
-                                districts.firstOrNull {
-                                    it.polygons.any { polygon ->
-                                        polygon.contains(point)
-                                    }
+        override fun observeDistrictVisitCounts(profileId: Long): Flow<Map<String, Int>> =
+            recordDao
+                .observeDistrictLocationVisitCounts(profileId)
+                .map { counts ->
+                    // Records saved before district codes were introduced can still have coordinates.
+                    val unresolved = counts.filter { it.districtCode == null }
+                    val legacyCodes =
+                        resolveDistricts(
+                            unresolved.map { count ->
+                                if (count.latitude != null && count.longitude != null) {
+                                    GeoPoint(count.longitude, count.latitude)
+                                } else {
+                                    null
                                 }
-                            if (district != null) {
-                                put(district.code, (get(district.code) ?: 0) + stop.count)
+                            },
+                        ).iterator()
+                    buildMap {
+                        for (count in counts) {
+                            val districtCode = count.districtCode ?: legacyCodes.next()
+                            if (districtCode != null) {
+                                put(districtCode, (get(districtCode) ?: 0) + count.visitCount)
                             }
                         }
                     }
                 }.flowOn(Dispatchers.Default)
     }
-
-private fun BoundaryPolygon.contains(point: GeoPoint): Boolean =
-    rings.firstOrNull()?.containsPoint(point) == true && rings.drop(1).none { it.containsPoint(point) }
-
-private fun List<GeoPoint>.containsPoint(point: GeoPoint): Boolean {
-    var previous = lastOrNull() ?: return false
-    var inside = false
-    for (current in this) {
-        // A horizontal ray crosses the ring only when its endpoints straddle the latitude.
-        if ((previous.latitude > point.latitude) != (current.latitude > point.latitude)) {
-            val intersection =
-                previous.longitude + (current.longitude - previous.longitude) *
-                    (point.latitude - previous.latitude) / (current.latitude - previous.latitude)
-            if (point.longitude < intersection) inside = !inside
-        }
-        previous = current
-    }
-    return inside
-}

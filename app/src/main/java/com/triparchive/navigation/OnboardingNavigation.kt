@@ -367,6 +367,7 @@ private fun OnboardingNavigationContent(
                     }
                     entry<VisitMap> { route ->
                         VisitMapRoute(
+                            profileId = route.profileId,
                             onBack = {
                                 if (backStack.lastOrNull() == route) backStack.removeLastOrNull()
                             },
@@ -405,6 +406,11 @@ private fun OnboardingNavigationContent(
                         profiles.firstOrNull { it.id == route.profileId }?.let { profile ->
                             ProfileManagementScreen(
                                 profile = profile,
+                                onMapColorChange = { color ->
+                                    if (!drivingRestricted && !management.busy && backStack.lastOrNull() == route) {
+                                        managementViewModel.updateMapColor(profile.id, color)
+                                    }
+                                },
                                 showDeleteDialog = management.showDeleteDialog,
                                 busy = management.busy,
                                 error = management.error,

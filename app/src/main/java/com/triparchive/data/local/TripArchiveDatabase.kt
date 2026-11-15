@@ -17,7 +17,7 @@ import com.triparchive.data.trip.TripSessionPropEntity
     entities = [
         Profile::class, TripRecord::class, TripStop::class, TripSessionEntity::class, TripSessionPropEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 abstract class TripArchiveDatabase : RoomDatabase() {
@@ -73,22 +73,56 @@ val MIGRATION_3_4 =
 val MIGRATION_4_5 =
     object : Migration(4, 5) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            db.execSQL(
-                "CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_sessions_sessionId` ON `trip_sessions` (`sessionId`)",
-            )
-            db.execSQL(
-                "CREATE TABLE IF NOT EXISTS `trip_session_props` (`sessionId` TEXT NOT NULL, `category` TEXT NOT NULL, `acquiredOrder` INTEGER NOT NULL, PRIMARY KEY(`sessionId`, `category`), FOREIGN KEY(`sessionId`) REFERENCES `trip_sessions`(`sessionId`) ON UPDATE NO ACTION ON DELETE CASCADE)",
-            )
-            db.execSQL(
-                "CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_session_props_sessionId_acquiredOrder` ON `trip_session_props` (`sessionId`, `acquiredOrder`)",
-            )
+            createTripSessionProps(db)
         }
     }
 
 val MIGRATION_5_6 =
     object : Migration(5, 6) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            db.execSQL("ALTER TABLE trip_stops ADD COLUMN latitude REAL")
-            db.execSQL("ALTER TABLE trip_stops ADD COLUMN longitude REAL")
+            // An unreleased feature build also used version 5 without the session props table.
+            createTripSessionProps(db)
+            db.addColumnIfMissing("trip_stops", "latitude", "REAL")
+            db.addColumnIfMissing("trip_stops", "longitude", "REAL")
         }
     }
+
+val MIGRATION_6_7 =
+    object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.addColumnIfMissing("profiles", "mapColor", "TEXT NOT NULL DEFAULT 'PINK'")
+            db.addColumnIfMissing("trip_stops", "districtCode", "TEXT")
+        }
+    }
+
+private fun createTripSessionProps(db: SupportSQLiteDatabase) {
+    db.execSQL(
+        "CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_sessions_sessionId` ON `trip_sessions` (`sessionId`)",
+    )
+    db.execSQL(
+        "CREATE TABLE IF NOT EXISTS `trip_session_props` (`sessionId` TEXT NOT NULL, `category` TEXT NOT NULL, `acquiredOrder` INTEGER NOT NULL, PRIMARY KEY(`sessionId`, `category`), FOREIGN KEY(`sessionId`) REFERENCES `trip_sessions`(`sessionId`) ON UPDATE NO ACTION ON DELETE CASCADE)",
+    )
+    db.execSQL(
+        "CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_session_props_sessionId_acquiredOrder` ON `trip_session_props` (`sessionId`, `acquiredOrder`)",
+    )
+}
+
+private fun SupportSQLiteDatabase.addColumnIfMissing(
+    table: String,
+    column: String,
+    definition: String,
+) {
+    val exists =
+        query("PRAGMA table_info(`$table`)").use { cursor ->
+            val nameIndex = cursor.getColumnIndexOrThrow("name")
+            var found = false
+            while (cursor.moveToNext()) {
+                if (cursor.getString(nameIndex) == column) {
+                    found = true
+                    break
+                }
+            }
+            found
+        }
+    if (!exists) execSQL("ALTER TABLE `$table` ADD COLUMN `$column` $definition")
+}

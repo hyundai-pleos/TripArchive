@@ -3,6 +3,7 @@ package com.triparchive.presentation.management
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.triparchive.data.profile.Profile
+import com.triparchive.data.profile.ProfileMapColor
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.data.profile.ProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -49,6 +50,25 @@ class ProfileManagementViewModel
 
         fun updateRelationship(value: ProfileRelationship) {
             if (!state.value.busy) mutableState.value = state.value.copy(relationship = value, error = null)
+        }
+
+        fun updateMapColor(
+            id: Long,
+            color: ProfileMapColor,
+        ) {
+            val current = state.value
+            if (current.busy) return
+            mutableState.value = current.copy(busy = true, error = null)
+            viewModelScope.launch {
+                try {
+                    check(repository.updateMapColor(id, color))
+                    mutableState.value = state.value.copy(busy = false, error = null)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    mutableState.value = state.value.copy(busy = false, error = "지도 색상을 저장하지 못했어요. 다시 시도해 주세요.")
+                }
+            }
         }
 
         fun showDelete() {

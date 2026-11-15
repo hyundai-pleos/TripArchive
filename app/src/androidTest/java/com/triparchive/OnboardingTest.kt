@@ -300,6 +300,15 @@ class OnboardingTest {
             return true
         }
 
+        override suspend fun updateMapColor(
+            id: Long,
+            color: com.triparchive.data.profile.ProfileMapColor,
+        ): Boolean {
+            if (profiles.value.none { it.id == id }) return false
+            profiles.value = profiles.value.map { if (it.id == id) it.copy(mapColor = color.name) else it }
+            return true
+        }
+
         override suspend fun delete(id: Long): Boolean {
             deleteCalls++
             deleteGate?.await()
