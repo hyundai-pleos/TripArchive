@@ -47,6 +47,8 @@ data class TripStop(
     val placeName: String,
     val category: String? = null,
     val districtCode: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
 )
 
 data class NewTripRecord(

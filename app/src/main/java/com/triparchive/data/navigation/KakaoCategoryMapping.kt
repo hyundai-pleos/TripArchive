@@ -6,7 +6,7 @@ internal fun categoryForCode(code: String): DestinationCategory? =
     when (code) {
         "MT1", "CS2" -> DestinationCategory.MART
         "PS3", "SC4", "AC5" -> DestinationCategory.SCHOOL
-        "PK6", "CT1", "PO3", "AT4", "AD5" -> DestinationCategory.TOURISM
+        "CT1", "PO3", "AT4", "AD5" -> DestinationCategory.TOURISM
         "FD6", "CE7" -> DestinationCategory.FOOD
         "HP8", "PM9" -> DestinationCategory.HOSPITAL
         else -> null

@@ -17,7 +17,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,7 +34,6 @@ import com.triparchive.data.character.CharacterLookCatalog
 import com.triparchive.data.profile.MAX_PROFILES
 import com.triparchive.data.profile.ProfileRelationship
 import com.triparchive.data.trip.TripSessionStatus
-import com.triparchive.domain.navigation.DestinationCategory
 import com.triparchive.presentation.DrivingUxRestrictionsProvider
 import com.triparchive.presentation.LocalDrivingRestricted
 import com.triparchive.presentation.home.CharacterRenderResources
@@ -221,13 +219,11 @@ private fun OnboardingNavigationContent(
     }
     val currentRoute = backStack.lastOrNull()
     val homeProfileId = (currentRoute as? Home)?.profileId
-    val retainedDestinationCategory = remember(homeProfileId) { mutableStateOf<DestinationCategory?>(null) }
     LaunchedEffect(homeProfileId, profiles) {
         profiles.firstOrNull { it.id == homeProfileId }?.let(selectionViewModel::openOrResumeTrip)
     }
     val onProfileList = currentRoute == Profiles
     val inProfileFlow = Profiles in backStack
-    val homeBackground = if (inProfileFlow) painterResource(R.drawable.home_street_background) else null
     // Keep each profile's scene alive while the profile list stays in the back stack.
     val characterRelationships =
         if (inProfileFlow) profiles.map { it.relationship }.toSet() else emptySet()
@@ -235,8 +231,8 @@ private fun OnboardingNavigationContent(
         hasCharacters = characterRelationships.isNotEmpty(),
         modifier = modifier,
     ) { resourcesReady ->
-        if (currentRoute is Home && homeBackground != null) {
-            Box(Modifier.fillMaxSize().zIndex(-2f).homeBackground(homeBackground))
+        if (currentRoute is Home && inProfileFlow) {
+            Box(Modifier.fillMaxSize().zIndex(-2f).homeBackground())
         }
         NavDisplay(
             backStack = backStack,
@@ -289,12 +285,23 @@ private fun OnboardingNavigationContent(
                                         cachedCharacterLook(it, profile.relationship) != null
                                 }
                             if (validSession != null) {
-                                LaunchedEffect(tripSessionViewModel) {
-                                    tripSessionViewModel.startDestinationObservation()
+                                LaunchedEffect(tripSessionViewModel, validSession.sessionId) {
+                                    tripSessionViewModel.startDestinationObservation(
+                                        profileId = profile.id,
+                                        sessionId = validSession.sessionId,
+                                    )
                                 }
                                 DestinationHome(
                                     profile = profile,
                                     categorySelectionState = tripSessionViewModel.categorySelection,
+                                    acquiredProps = validSession.props,
+                                    onDestinationConfirmed = { destination ->
+                                        tripSessionViewModel.confirmDestination(
+                                            profile.id,
+                                            validSession.sessionId,
+                                            destination,
+                                        )
+                                    },
                                     homeActive = backStack.lastOrNull() == home,
                                     onProfileClick = {
                                         if (!drivingRestricted &&
@@ -328,9 +335,6 @@ private fun OnboardingNavigationContent(
                                     },
                                     renderCharacter = false,
                                     drawBackground = false,
-                                    onDestinationCategoryChange = { category ->
-                                        if (backStack.lastOrNull() == home) retainedDestinationCategory.value = category
-                                    },
                                 )
                             } else if (profile.id in tripSessionErrors) {
                                 Column(
@@ -516,10 +520,8 @@ private fun OnboardingNavigationContent(
                         visible = relationship == homeRelationship,
                         active = relationship == homeRelationship,
                         prepare = onProfileList,
-                        destinationCategory =
-                            retainedDestinationCategory.value.takeIf {
-                                currentRoute is Home && relationship == homeRelationship
-                            },
+                        destinationCategories =
+                            if (relationship == homeRelationship) homeSession?.props.orEmpty() else emptyList(),
                     )
                 }
             }

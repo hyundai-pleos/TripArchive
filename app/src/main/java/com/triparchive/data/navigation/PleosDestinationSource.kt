@@ -4,6 +4,7 @@ import ai.pleos.playground.navi.constants.NaviErrorCode
 import ai.pleos.playground.navi.constants.NaviMode
 import ai.pleos.playground.navi.data.DestinationArrivedInfo
 import ai.pleos.playground.navi.data.DestinationInfo
+import ai.pleos.playground.navi.data.RouteStartInfo
 import ai.pleos.playground.navi.data.RouteStateInfo
 import ai.pleos.playground.navi.helper.NaviHelper
 import ai.pleos.playground.navi.helper.listener.NaviHelperEventListener
@@ -14,6 +15,7 @@ import android.util.Log
 import com.triparchive.domain.navigation.Destination
 import com.triparchive.domain.navigation.DestinationCategoryClassifier
 import com.triparchive.domain.navigation.DestinationSource
+import com.triparchive.domain.navigation.classifyWithRetry
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.awaitClose
@@ -69,11 +71,7 @@ class PleosDestinationSource
                             categoryJobs[id] =
                                 launch {
                                     val result =
-                                        classifier.classify(
-                                            destination.name,
-                                            destination.latitude,
-                                            destination.longitude,
-                                        )
+                                        classifier.classifyWithRetry(destination)
                                     post {
                                         categoryJobs.remove(id)
                                         session.categoryResolved(id, result)
@@ -126,12 +124,18 @@ class PleosDestinationSource
                             refresh()
                         }
 
-                        override fun onRoutingCompleted() {
+                        // Replacing an active route can emit cancellation followed by route-start
+                        // without routing-completed. Resume updates before requesting the new destination.
+                        override fun onRouteStarted(routeStartInfo: RouteStartInfo) = resumeRoute()
+
+                        override fun onRoutingCompleted() = resumeRoute()
+
+                        private fun resumeRoute() {
                             post {
                                 routeCancelled = false
                                 session.routeStarted()
+                                refresh()
                             }
-                            refresh()
                         }
 
                         override fun onReRouteEnded() {

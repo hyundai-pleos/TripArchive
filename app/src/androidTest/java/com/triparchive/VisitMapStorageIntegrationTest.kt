@@ -19,6 +19,7 @@ import com.triparchive.domain.navigation.DestinationCategory
 import com.triparchive.domain.navigation.DestinationState
 import com.triparchive.domain.navigation.ResolveDestinationCategory
 import com.triparchive.presentation.home.TripSessionViewModel
+import com.triparchive.testing.RecordingTripSessions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -49,8 +50,9 @@ class VisitMapStorageIntegrationTest {
                         FakeDestinationSource(MutableStateFlow(DestinationState())),
                         ResolveDestinationCategory(),
                         resolver,
+                        RecordingTripSessions(),
                     )
-                val counts = RegionVisitCountRepositoryImpl(db.recordDao())
+                val counts = RegionVisitCountRepositoryImpl(db.recordDao(), resolver)
                 firstTrip.recordArrival(destination(1, "성심당 DCC점", 36.37556666, 127.39208333))
                 firstTrip.recordArrival(destination(2, "다른 유성구 목적지", 36.37556666, 127.39208333))
                 firstTrip.recordArrival(destination(3, "서울시청", 37.5665, 126.9780))
@@ -66,6 +68,7 @@ class VisitMapStorageIntegrationTest {
                         FakeDestinationSource(MutableStateFlow(DestinationState())),
                         ResolveDestinationCategory(),
                         resolver,
+                        RecordingTripSessions(),
                     )
                 secondTrip.recordArrival(destination(5, "성심당 DCC점", 36.37556666, 127.39208333))
                 assertTrue(secondTrip.save(secondProfile, null))

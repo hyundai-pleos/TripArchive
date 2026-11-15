@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 5,
-    "identityHash": "aa8e22bd80deea8afa63b927bd8d234e",
+    "identityHash": "22b0c8ca619254b4e812bbeed4744b18",
     "entities": [
       {
         "tableName": "profiles",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `nickname` TEXT NOT NULL, `relationship` TEXT NOT NULL, `mapColor` TEXT NOT NULL DEFAULT 'PINK')",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `nickname` TEXT NOT NULL, `relationship` TEXT NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -25,13 +25,6 @@
             "columnName": "relationship",
             "affinity": "TEXT",
             "notNull": true
-          },
-          {
-            "fieldPath": "mapColor",
-            "columnName": "mapColor",
-            "affinity": "TEXT",
-            "notNull": true,
-            "defaultValue": "'PINK'"
           }
         ],
         "primaryKey": {
@@ -114,7 +107,7 @@
       },
       {
         "tableName": "trip_stops",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `tripId` INTEGER NOT NULL, `position` INTEGER NOT NULL, `placeName` TEXT NOT NULL, `category` TEXT, `districtCode` TEXT, FOREIGN KEY(`tripId`) REFERENCES `trip_records`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `tripId` INTEGER NOT NULL, `position` INTEGER NOT NULL, `placeName` TEXT NOT NULL, `category` TEXT, FOREIGN KEY(`tripId`) REFERENCES `trip_records`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "id",
@@ -143,11 +136,6 @@
           {
             "fieldPath": "category",
             "columnName": "category",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "districtCode",
-            "columnName": "districtCode",
             "affinity": "TEXT"
           }
         ],
@@ -230,6 +218,17 @@
             "profileId"
           ]
         },
+        "indices": [
+          {
+            "name": "index_trip_sessions_sessionId",
+            "unique": true,
+            "columnNames": [
+              "sessionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_sessions_sessionId` ON `${TABLE_NAME}` (`sessionId`)"
+          }
+        ],
         "foreignKeys": [
           {
             "table": "profiles",
@@ -243,11 +242,67 @@
             ]
           }
         ]
+      },
+      {
+        "tableName": "trip_session_props",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sessionId` TEXT NOT NULL, `category` TEXT NOT NULL, `acquiredOrder` INTEGER NOT NULL, PRIMARY KEY(`sessionId`, `category`), FOREIGN KEY(`sessionId`) REFERENCES `trip_sessions`(`sessionId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "acquiredOrder",
+            "columnName": "acquiredOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sessionId",
+            "category"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_trip_session_props_sessionId_acquiredOrder",
+            "unique": true,
+            "columnNames": [
+              "sessionId",
+              "acquiredOrder"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_session_props_sessionId_acquiredOrder` ON `${TABLE_NAME}` (`sessionId`, `acquiredOrder`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "trip_sessions",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sessionId"
+            ],
+            "referencedColumns": [
+              "sessionId"
+            ]
+          }
+        ]
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'aa8e22bd80deea8afa63b927bd8d234e')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '22b0c8ca619254b4e812bbeed4744b18')"
     ]
   }
 }

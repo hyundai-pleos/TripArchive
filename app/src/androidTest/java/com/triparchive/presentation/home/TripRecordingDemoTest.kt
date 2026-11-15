@@ -21,6 +21,7 @@ import com.triparchive.domain.map.GetAdministrativeBoundaries
 import com.triparchive.domain.map.ResolveDistricts
 import com.triparchive.domain.navigation.DestinationState
 import com.triparchive.domain.navigation.ResolveDestinationCategory
+import com.triparchive.testing.RecordingTripSessions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -80,6 +81,7 @@ class TripRecordingDemoTest {
                 FakeDestinationSource(source),
                 ResolveDestinationCategory(),
                 emptyDistricts(),
+                RecordingTripSessions(),
             )
         var finished = false
         compose.setContent {
@@ -129,6 +131,7 @@ class TripRecordingDemoTest {
                 FakeDestinationSource(source),
                 ResolveDestinationCategory(),
                 emptyDistricts(),
+                RecordingTripSessions(),
             )
         var finished = false
         compose.setContent {
@@ -174,6 +177,7 @@ class TripRecordingDemoTest {
                 FakeDestinationSource(source),
                 ResolveDestinationCategory(),
                 emptyDistricts(),
+                RecordingTripSessions(),
             )
         var attempts = 0
         var finished = false
