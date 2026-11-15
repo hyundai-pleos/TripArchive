@@ -15,6 +15,7 @@ local.properties
 .cxx/
 captures/
 *.apk
+!/apk/*.apk
 *.aab
 output-metadata.json
 *.hprof
